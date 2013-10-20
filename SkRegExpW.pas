@@ -1714,7 +1714,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.0.2';
+  CONST_VERSION = '3.0.3';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -10100,13 +10100,13 @@ begin
             else
               AMatchLen.Max := -1;
 
-            if (ROffset.Min = LOffset.Min) then
-              AOffset.Min := ROffset.Min
+            if (AOffset.Min > -1) and (LOffset.Min > -1) and (ROffset.Min > -1) then
+              Inc(AOffset.Min, SkRegExpW.Min(LOffset.Min, ROffset.Min))
             else
               AOffset.Min := -1;
 
-            if (ROffset.Max = LOffset.Max) then
-              AOffset.Max := ROffset.Max
+            if (AOffset.Max > -1) and (LOffset.Max > -1) and (ROffset.Max > -1) then
+              Inc(AOffset.Max, SkRegExpW.Max(LOffset.Max, ROffset.Max))
             else
               AOffset.Max := -1;
 
