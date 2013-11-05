@@ -1100,7 +1100,7 @@ type
   PREBranchStateRec = ^TREBranchStateRec;
 
   TRENFAOptimizeState = record
-    IsNullMatch, IsJoinMatch, IsZeroMatch: Boolean;
+    IsNullMatch, IsJoinMatch: Boolean;
   end;
 
   { NFA を生成するクラス }
@@ -3561,7 +3561,7 @@ end;
 function TRETrieList.Add(const Value: TRETrieNode): Integer;
 var
   Hash: Integer;
-  Data, SubData: PRETrieHashData;
+  Data, SubData, PrevData: PRETrieHashData;
 begin
   FStartWChar := Min(FStartWChar, Value.WChar);
   FLastWChar := Max(FLastWChar, Value.WChar);
@@ -3580,10 +3580,18 @@ begin
   else
   begin
     SubData := FBuckets[Hash];
+
+    repeat
+      if SubData^.Index = Result then
+        Exit;
+      PrevData := SubData;
+      SubData := SubData^.Next;
+    until SubData = nil;
+
     New(Data);
-    SubData.Next := Data;
     Data.Index := Result;
     Data.Next := nil;
+    PrevData.Next := Data;
   end;
 end;
 
@@ -3834,7 +3842,7 @@ procedure TREACSearch.MakeFailure(ANode: TRETrieNode);
   var
     SubNode: TRETrieNode;
   begin
-    if Go(ANode.Parent, Ch) =  nil then
+    if Go(ANode.Parent, Ch) = nil then
       Result := GetFailure(ANode.Parent.Parent, Ch)
     else
     begin
@@ -9989,7 +9997,6 @@ begin
   MatchLen.Max := 0;
   State.IsNullMatch := False;
   State.IsJoinMatch := True;
-  State.IsZeroMatch := False;
 
   AddTransition(nkEnd, FRegExp.FExitState, -1, nil, 0, 0);
   GenerateStateList(FRegExp.FCode, FRegExp.FEntryState, FRegExp.FExitState,
@@ -10032,7 +10039,7 @@ procedure TRENFA.GenerateStateList(ACode: TRECode; AEntry, AWayout: Integer;
 
   function GetAnchorKind(AState: TRENFAOptimizeState): TREOptimizeDataKind;
   begin
-    if AState.IsZeroMatch then
+    if AState.IsNullMatch then
       Result := odkExist
     else if FBEntryState = AEntry then
       Result := odkLead
@@ -10442,7 +10449,7 @@ begin
             LOffset.Min := -1;
             LOffset.Max := -1;
             AState.IsJoinMatch := False;
-            AState.IsZeroMatch := not AState.IsNullMatch ;
+            AState.IsNullMatch := True;
 
             PushState(AEntry, AWayout, State1, State2);
             GenerateStateList(Left, State1, State2, ABranchLevel, LLen, LOffset,
@@ -10492,7 +10499,7 @@ begin
             LOffset.Min := -1;
             LOffset.Max := -1;
             AState.IsJoinMatch := False;
-            AState.IsZeroMatch := not AState.IsNullMatch ;
+            AState.IsNullMatch := True;
 
             PushState(AEntry, AWayout, State1, State2);
             GenerateStateList(Left, State1, State2, ABranchLevel, LLen, LOffset,
