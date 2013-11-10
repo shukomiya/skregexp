@@ -15208,16 +15208,6 @@ begin
   else
     P := FGlobalEndP + 1;
 
-  if roMultiLine in FOptions then
-  begin
-    L := IsLineBreak(P);
-    while L > 0 do
-    begin
-      Inc(P, L);
-      L := IsLineBreak(P);
-    end;
-  end;
-
   FMatchOffset := P - FTextTopP + 1;
 
   Result := MatchCore(P);
