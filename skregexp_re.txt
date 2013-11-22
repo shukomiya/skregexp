@@ -1,126 +1,171 @@
-SkRegExp Regular Expressions Version 1.1.15    
+SkRegExp Regular Expressions Version 3.0.4
 
 1. Modifiers
 
-  m    Treat string as multiple lines. That is, change "^" and "$" 
-       from matching the start or end of the string to matching 
-       the start or end of any line anywhere within the string.
+  m  Multiline mode - ^ and $ match internal lines
+  s  match as a Single line - . matches \n
+  i  case-Insensitive
+  x  eXtended legibility - free whitespace and comments
+  a  restrict \d, \s, \w and [:posix:] to match ASCII only
+  aa (two a's) also /i matches exclude ASCII/non-ASCII
+  l, u, d  match according to Unicode rules
        
-  s    Treat string as single line. That is, change "." to match 
-       any character whatsoever, even a newline, which normally 
-       it would not match.
-  
-  i    Do case-insensitive pattern matching.
-  
-  x    Extend your pattern's legibility by permitting whitespace 
-       and comments.
-       
-2. Metacharacters
+2. Syntax
 
-  \    Quote the next metacharacter
-  ^    Match the beginning of the line
-  .    Match any character (except newline)
-  $    Match the end of the line (or before newline at the end)
-  |    Alternation
-  ()   Grouping
-  []   Character class
+  \       Escapes the character immediately following it
+  .       Matches any single character except a newline (unless /s is
+                      used)
+  ^       Matches at the beginning of the string (or line, if /m is used)
+  $       Matches at the end of the string (or line, if /m is used)
+  *       Matches the preceding element 0 or more times
+  +       Matches the preceding element 1 or more times
+  ?       Matches the preceding element 0 or 1 times
+  {...}   Specifies a range of occurrences for the element preceding it
+  [...]   Matches any one of the characters contained within the brackets
+  (...)   Groups subexpressions for capturing to $1, $2...
+  (?:...) Groups subexpressions without capturing (cluster)
+  |       Matches either the subexpression preceding or following it
+  \g1 or \g{1}, \g2 ...    Matches the text from the Nth group
+  \1, \2, \3 ...           Matches the text from the Nth group
+  \g-1 or \g{-1}, \g-2 ... Matches the text from the Nth previous group
+  \g{name}     Named backreference
+  \k<name>     Named backreference
+  \k'name'     Named backreference
+  (?P=name)    Named backreference (python syntax)
 
-3.Quantifiers
+3. Escape Sequences 
+
+  \a       Alarm (beep)
+  \e       Escape
+  \f       Formfeed
+  \n       Newline
+  \r       Carriage return
+  \t       Tab
+  \037     Char whose ordinal is the 3 octal digits, max \777
+  \o{2307} Char whose ordinal is the octal number, unrestricted
+  \x7f     Char whose ordinal is the 2 hex digits, max \xFF
+  \x{263a} Char whose ordinal is the hex number, unrestricted
+  \cx      Control-x
+  \Q  Disable pattern metacharacters until \E
+  \E  End modification
+
+4. Caracter Classes
+
+  [amy]    Match 'a', 'm' or 'y'
+  [f-j]    Dash specifies "range"
+  [f-j-]   Dash escaped or at start or end means 'dash'
+  [^f-j]   Caret indicates "match any character _except_ these"
+
+  \d      A digit
+  \D      A nondigit
+  \w      A word character
+  \W      A non-word character
+  \s      A whitespace character
+  \S      A non-whitespace character
+  \h      An horizontal whitespace
+  \H      A non horizontal whitespace
+  \N      A non newline (it's like '.' without /s modifier)
+  \v      A vertical whitespace
+  \V      A non vertical whitespace
+  \R      A generic newline           (?>\v|\x0D\x0A)
+  \pP     Match P-named (Unicode) property
+  \p{...} Match Unicode property with name longer than 1 character
+  \PP     Match non-P
+  \P{...} Match lack of Unicode property with name longer than 1 char
+  \X      Match Unicode extended grapheme cluster
+
+5. The POSIX character class syntax
+
+  [:class:]
+  [:^class:]  non class
+
+  [[:...:]]	\p{...}		backslash
+
+  alpha       IsAlpha
+  alnum       IsAlnum
+  ascii       IsASCII
+  blank
+  cntrl       IsCntrl
+  digit       IsDigit        \d
+  graph       IsGraph
+  lower       IsLower
+  print       IsPrint
+  punct       IsPunct
+  space       IsSpace
+              IsSpacePerl    \s
+  upper       IsUpper
+  word        IsWord
+  xdigit      IsXDigit
+
+6. Anchor
+
+  ^  Match string start (or line, if /m is used)
+  $  Match string end (or line, if /m is used) or before newline
+  \b Match word boundary (between \w and \W)
+  \B Match except at word boundary (between \w and \w or \W and \W)
+  \A Match string start (regardless of /m)
+  \Z Match string end (before optional newline)
+  \z Match absolute string end
+  \K Keep the stuff left of the \K, don't include it in $&
+
+7. Quantifiers
 
   greedy
   
-    *	   Match 0 or more times
-    +	   Match 1 or more times
-    ?	   Match 1 or 0 times
-    {n}    Match exactly n times
-    {n,}   Match at least n times
-    {n,m}  Match at least n but not more than m times
-    
-  reluctant
+  *	   Match 0 or more times
+  +	   Match 1 or more times
+  ?	   Match 1 or 0 times
+  {n}    Match exactly n times
+  {n,}   Match at least n times
+  {n,m}  Match at least n but not more than m times
+  
+  minimal
 
-    *?     Match 0 or more times, not greedily
-    +?     Match 1 or more times, not greedily
-    ??     Match 0 or 1 time, not greedily
-    {n}?   Match exactly n times, not greedily
-    {n,}?  Match at least n times, not greedily
-    {n,m}? Match at least n but not more than m times, not greedily
+  *?     Match 0 or more times, not greedily
+  +?     Match 1 or more times, not greedily
+  ??     Match 0 or 1 time, not greedily
+  {n}?   Match exactly n times, not greedily
+  {n,}?  Match at least n times, not greedily
+  {n,m}? Match at least n but not more than m times, not greedily
 
   possessive 
 
-    *+     Match 0 or more times and give nothing back
-    ++     Match 1 or more times and give nothing back
-    ?+     Match 0 or 1 time and give nothing back
-    {n}+   Match exactly n times and give nothing back (redundant)
-    {n,}+  Match at least n times and give nothing back
-    {n,m}+ Match at least n but not more than m times and give nothing back
-    
-3. Characters
+  *+     Match 0 or more times and give nothing back
+  ++     Match 1 or more times and give nothing back
+  ?+     Match 0 or 1 time and give nothing back
+  {n}+   Match exactly n times and give nothing back (redundant)
+  {n,}+  Match at least n times and give nothing back
+  {n,m}+ Match at least n but not more than m times and give nothing back
+  
+8. Extended Constructs
 
-  \t        tab                   (HT, TAB)
-  \n        newline               (LF, NL)
-  \r        return                (CR)
-  \f        form feed             (FF)
-  \a        alarm (bell)          (BEL)
-  \b        backspace
-  \e        escape (think troff)  (ESC)
-  \033      octal char            (example: ESC)
-  \x1B      hex char              (example: ESC)
-  \x{263a}  wide hex char         (example: Unicode SMILEY)
-  \cK       control char          (example: VT)
-  \Q..\E    quote (disable) pattern metacharacters till \E
-
- (* \b is effective in character class [...] only)
-
-4. Character Classes and other Special Escapes
-
-  \w        Match a "word" character (alphanumeric plus "_")
-  \W        Match a non-"word" character
-  \s        Match a whitespace character
-  \S        Match a non-whitespace character
-  \d        Match a digit character
-  \D        Match a non-digit character
-  \pP       Match P, named property.  Use \p{Prop} for longer names.
-  \PP       Match non-P
-  \X        Match eXtended Unicode "combining character sequence",
-            equivalent to (?:\PM\pM*)
-  \C        Match a single C char (octet) even under Unicode.
-            NOTE: breaks up characters into their UTF-8 bytes,
-            so you may end up with malformed pieces of UTF-8.
-            Unsupported in lookbehind.
-  \1        Backreference to a specific group.
-            '1' may actually be any positive integer.
-  \g1       Backreference to a specific or previous group,
-  \g{-1}    number may be negative indicating a previous buffer and may
-            optionally be wrapped in curly brackets for safer parsing.
-  \g{name}  Named backreference
-  \k<name>  Named backreference
-  \x12      Hexadecimal escape sequence
-  \x{1234}  Long hexadecimal escape sequence
-  \K        Keep the stuff left of the \K, don't include it in $&
-  \v        Vertical whitespace
-  \V        Not vertical whitespace
-  \h        Horizontal whitespace
-  \H        Not horizontal whitespace
-  \R        Linebreak
-
-  The POSIX character class syntax
-
-    [:class:]
-    
-    [[:...:]]	\p{...}		backslash
-
-    alpha       IsAlpha
-    alnum       IsAlnum
-    ascii       IsASCII
-    blank
-    cntrl       IsCntrl
-    digit       IsDigit        \d
-    graph       IsGraph
-    lower       IsLower
-    print       IsPrint
-    punct       IsPunct
-    space       IsSpace
-                IsSpacePerl    \s
-    upper       IsUpper
-    word        IsWord
-    xdigit      IsXDigit
+  (?#text)          A comment
+  (?:...)           Groups subexpressions without capturing (cluster)
+  (?pimsx-imsx:...) Enable/disable option (as per m// modifiers)
+  (?=...)           Zero-width positive lookahead assertion
+  (?!...)           Zero-width negative lookahead assertion
+  (?<=...)          Zero-width positive lookbehind assertion
+  (?<!...)          Zero-width negative lookbehind assertion
+  (?>...)           Grab what we can, prohibit backtracking
+  (?|...)           Branch reset
+  (?<name>...)      Named capture
+  (?'name'...)      Named capture
+  (?P<name>...)     Named capture (python syntax)
+  (?N)              Recurse into subpattern number N
+  (?-N), (?+N)      Recurse into Nth previous/next subpattern
+  (?R), (?0)        Recurse at the beginning of the whole pattern
+  (?&name)          Recurse into a named subpattern
+  (?P>name)         Recurse into a named subpattern (python syntax)
+  (?(cond)yes|no)
+  (?(cond)yes)      Conditional expression, where "cond" can be:
+                     (?=pat)   look-ahead
+                     (?!pat)   negative look-ahead
+                     (?<=pat)  look-behind
+                     (?<!pat)  negative look-behind
+                     (N)       subpattern N has matched something
+                     (<name>)  named subpattern has matched something
+                     ('name')  named subpattern has matched something
+                     (R)       true if recursing
+                     (RN)      true if recursing into Nth subpattern
+                     (R&name)  true if recursing into named subpattern
+                     (DEFINE)  always false, no no-pattern allowed
