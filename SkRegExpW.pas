@@ -3269,6 +3269,8 @@ begin
   else
   begin
     AStr := FSkipP;
+    if IsLeadChar(AStr^) then
+      Inc(AStr);
     Inc(AStr);
     FSkipP := nil;
   end;
