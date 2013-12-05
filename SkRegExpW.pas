@@ -1714,7 +1714,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.0.4';
+  CONST_VERSION = '3.0.5';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -3269,6 +3269,7 @@ begin
   else
   begin
     AStr := FSkipP;
+    Inc(AStr);
     FSkipP := nil;
   end;
 
