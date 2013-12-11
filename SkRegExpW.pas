@@ -933,6 +933,7 @@ type
     FJoinMatchGroupSize: Integer;
     FHasGoSub: Boolean;
     FHasTailAnchor: Boolean;
+    FHasReference: Boolean;
   protected
     function NewBinCode(AOperator: TREOperator; ALeft, ARight: TRECode;
       AMin: Integer = 0; AMax: Integer = 0): TRECode;
@@ -948,6 +949,7 @@ type
     procedure Parse;
     property HasGoSub: Boolean read FHasGoSub;
     property HasTailAnchor: Boolean read FHasTailAnchor;
+    property HasReference: Boolean read FHasReference;
   end;
 
   TREOptimizeDataKind = (odkNormal, odkExist, odkLead, odkTail, odkLineHead, odkLineTail,
@@ -1484,6 +1486,7 @@ type
     FStateList: TList;
     FEntryState, FExitState: Integer;
 
+    FHasReference: Boolean;
     FOnMatch: TNotifyEvent;
 
     FGlobalStartP, FGlobalEndP: PWideChar;
@@ -1714,7 +1717,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.0.5';
+  CONST_VERSION = '3.0.6';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -8721,6 +8724,7 @@ begin
   FCurrentGroup := 0;
   FGroupLevel := 0;
   FHasRecursion := False;
+  FHasReference := False;
 
   FLex.GetToken;
   FRegExp.FCode := RegExpr;
@@ -8777,7 +8781,11 @@ begin
   for I := 1 to FRegExp.FGroups.Count - 1 do
   begin
     if FJoinMatchGroup[I] then
+    begin
       FRegExp.FGroups[I].FJoinMatch := True;
+      if not FHasReference then
+        FHasReference := True;
+    end;
   end;
 end;
 
@@ -9984,6 +9992,7 @@ begin
   FOptimizeData.Clear;
   FRegExp.FLoopState.Clear;
   FRegExp.FBranchCount := 0;
+  FRegExp.FHasReference := AParser.HasReference;
 
   BranchCount := 0;
   Offset.Min := 0;
@@ -13243,8 +13252,6 @@ begin
               end;
 
               Result := NextCode;
-              if AStr - SaveP > 0 then
-                FSkipP := AStr;
             end
 {$IFDEF USE_UNICODE_PROPERTY}
             else if LMatchKind = lkCombiningSequence then
@@ -13265,8 +13272,6 @@ begin
               end;
 
               Result := NextCode;
-              if AStr - SaveP > 0 then
-                FSkipP := AStr;
             end
 {$ENDIF USE_UNICODE_PROPERTY}
             else
@@ -13288,14 +13293,14 @@ begin
                 end;
 
                 Result := NextCode;
-                if AStr - SaveP > 0 then
-                  FSkipP := AStr;
+//                if not FRegExp.FHasReference and (AStr - SaveP > 0) then
+//                  FSkipP := AStr;
               end
               else
               begin
                 Stack.Remove(BaseIndex);
                 Result := NextCode;
-                if AStr - SaveP > 0 then
+                if not FRegExp.FHasReference and (AStr - SaveP > 0) then
                   FSkipP := AStr;
               end;
             end;
@@ -13339,14 +13344,14 @@ begin
               end;
 
               Result := NextCode;
-              if AStr - SaveP > 0 then
+              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
                 FSkipP := AStr;
             end //
             else
             begin
               Stack.Remove(BaseIndex);
               Result := NextCode;
-              if AStr - SaveP > 0 then
+              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
                 FSkipP := AStr;
             end;
           end
@@ -13526,11 +13531,7 @@ begin
             end;
 
             if IsMatched then
-            begin
-              Result := NextCode;
-              if (AStr - SaveP > 0) and (LMin > 0) then
-                FSkipP := AStr;
-            end
+              Result := NextCode
             else if not IsLoopMatched then
               AStr := SaveP;
           end
@@ -13562,8 +13563,6 @@ begin
             end;
 
             Result := NextCode;
-            if (AStr - SaveP > 0) and (LMin > 0) then
-              FSkipP := AStr;
           end
           else if LMatchKind = lkReluctant then
           begin
@@ -13607,11 +13606,7 @@ begin
             end;
 
             if IsLoopMatched then
-            begin
-              Result := NextCode;
-              if (AStr - SaveP > 0) and (LMin > 0) then
-                FSkipP := AStr;
-            end
+              Result := NextCode
             else
               AStr := SaveP;
           end
@@ -13644,7 +13639,8 @@ begin
             Stack.Remove(BaseIndex);
 
             Result := NextCode;
-            if (AStr - SaveP > 0) and (LMin > 0) then
+            if not FRegExp.FHasReference and
+                (AStr - SaveP > 0) and (LMin > 0) then
               FSkipP := AStr;
           end;
         end;
