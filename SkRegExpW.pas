@@ -15191,7 +15191,6 @@ end;
 
 function TSkRegExp.ExecNext: Boolean;
 var
-  L: Integer;
   P: PWideChar;
 begin
   Result := False;
