@@ -13459,8 +13459,6 @@ begin
                 end;
 
                 Result := NextCode;
-//                if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-//                  FSkipP := AStr;
               end
               else
               begin
@@ -13510,15 +13508,11 @@ begin
               end;
 
               Result := NextCode;
-              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-                FSkipP := AStr;
             end //
             else
             begin
               Stack.Remove(BaseIndex);
               Result := NextCode;
-              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-                FSkipP := AStr;
             end;
           end
           else
