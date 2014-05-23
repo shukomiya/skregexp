@@ -1717,7 +1717,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.0.6';
+  CONST_VERSION = '3.0.7';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -13293,8 +13293,6 @@ begin
                 end;
 
                 Result := NextCode;
-//                if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-//                  FSkipP := AStr;
               end
               else
               begin
@@ -13344,15 +13342,11 @@ begin
               end;
 
               Result := NextCode;
-              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-                FSkipP := AStr;
             end //
             else
             begin
               Stack.Remove(BaseIndex);
               Result := NextCode;
-              if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-                FSkipP := AStr;
             end;
           end
           else
@@ -15191,7 +15185,6 @@ end;
 
 function TSkRegExp.ExecNext: Boolean;
 var
-  L: Integer;
   P: PWideChar;
 begin
   Result := False;
