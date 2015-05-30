@@ -1,5 +1,11 @@
 ﻿正規表現ライブラリ SkRegExp 更新履歴
 
+   3.0.8 2015/5/30
+   　　・修正）TSkRegExp.Exec と TSkRegExp.ExecNext、または
+               TSkRegExp.ExecPos と TSkRegExp.ExecNext を使ったマッチの繰り返し時に
+               無限ループに陥るバグを修正。
+               次のマッチ位置を示すポインタをほかの用途のものと共用していたことが原因。
+               専用のポインタ TSkRegExp.FMatchStartP を追加。
    3.0.7 2014/5/23
        ・修正）数値指定の繰り返しで無限ループに陥ることがあるバグを修正。
    3.0.6 2013/12/11
