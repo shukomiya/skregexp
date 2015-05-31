@@ -1483,7 +1483,7 @@ type
     FBinCodeList: TList;
     FCompiled: Boolean;
     FTextTopP, FTextEndP: PWideChar;
-    FMatchTopP, FMatchEndP: PWideChar;
+    FMatchTopP, FMatchEndP, FMatchStartP: PWideChar;
     FGroups: TGroupCollection;
     FVerbNames: TREStrings;
 
@@ -12698,7 +12698,7 @@ begin
               P := StartP;
 
               if I > 0 then
-                CharPrev(P, FRegExp.FMatchTopP, I);
+                CharPrev(P, FRegExp.FMatchStartP, I);
 
               if MatchEntry(P) then
               begin
@@ -12733,7 +12733,7 @@ begin
               P := StartP;
 
               if I > 0 then
-                CharPrev(P, FRegExp.FMatchTopP, I);
+                CharPrev(P, FRegExp.FMatchStartP, I);
 
               if MatchEntry(P) then
               begin
@@ -12774,10 +12774,11 @@ begin
     lcmTextTop:
       begin
         if MatchEntry(AStr) then
-        begin
-          Result := True;
-          Exit;
-        end;
+          Result := True
+        else
+          Result := False;
+        FSkipP := FRegExp.FMatchEndP;
+        Exit;
       end;
     lcmLineTop:
       begin
@@ -12828,7 +12829,7 @@ begin
             begin
               P := StartP;
               if I > 0 then
-                CharPrev(P, FRegExp.FMatchTopP, I);
+                CharPrev(P, FRegExp.FMatchStartP, I);
 
               if MatchEntry(P) then
               begin
@@ -12918,7 +12919,7 @@ begin
             begin
               P := StartP;
               if I > 0 then
-                CharPrev(P, FRegExp.FMatchTopP, I);
+                CharPrev(P, FRegExp.FMatchStartP, I);
 
               if MatchEntry(P) then
               begin
@@ -14009,8 +14010,8 @@ begin
           else
             Len := LMax;
 
-          if FRegExp.FMatchTopP > (SubP - Len) then
-            Len := AStr - FRegExp.FMatchTopP;
+          if FRegExp.FMatchStartP > (SubP - Len) then
+            Len := AStr - FRegExp.FMatchStartP;
 
           if Len >= LMin then
           begin
@@ -14069,8 +14070,8 @@ begin
           else
             Len := LMax - LMin + 1;
 
-          if FRegExp.FMatchTopP > (SubP - Len) then
-            Len := AStr - FRegExp.FMatchTopP;
+          if FRegExp.FMatchStartP > (SubP - Len) then
+            Len := AStr - FRegExp.FMatchStartP;
 
           if Len >= LMin then
           begin
@@ -15350,6 +15351,8 @@ begin
   FMatchTopP := FTextTopP;
   FMatchEndP := FTextEndP;
 
+  FMatchStartP := FMatchTopP;
+
   P := FTextTopP;
 
   Result := MatchCore(P);
@@ -15371,6 +15374,8 @@ begin
     P := FGlobalEndP
   else
     P := FGlobalEndP + 1;
+
+  FMatchStartP := P;
 
   FMatchOffset := P - FTextTopP + 1;
 
@@ -15425,6 +15430,8 @@ begin
     FMatchEndP := FTextEndP;
     FMatchTopP := FTextTopP;
   end;
+
+  FMatchStartP := FMatchTopP;
 
   Result := MatchCore(P);
 end;
