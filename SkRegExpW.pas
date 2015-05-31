@@ -139,7 +139,9 @@ type
 
   TREPosixClassKind = (pckNone, pckAlnum, pckAlpha, pckAscii, pckBlank,
     pckCntrl, pckDigit, pckGraph, pckLower, pckPrint, pckUpper, pckPunct,
-    pckSpace, pckSpacePerl, pckXdigit, pckWord, pckAny, pckAssigned);
+    pckPunctPerl, pckPunctVertical, pckPunctHorizontal,
+    pckSpace, pckSpacePerl, pckSpaceVertical, pckSpaceHorizontal,
+    pckXdigit, pckWord, pckAny, pckAssigned);
 
   TRELineBreakKind = (lbAnyCRLF, lbLF, lbCR, lCRLF, lbAny);
 
@@ -398,6 +400,7 @@ type
   private
     FOptions: TREOptions;
     FNegative: Boolean;
+    FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
@@ -414,6 +417,7 @@ type
   private
     FOptions: TREOptions;
     FNegative: Boolean;
+    FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
@@ -430,6 +434,7 @@ type
   private
     FOptions: TREOptions;
     FNegative: Boolean;
+    FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
@@ -1751,6 +1756,49 @@ const
   CONST_Wide_Dakuten_CS = #$3099;
   CONST_Wide_Handakuten_CS = #$309A;
 
+  CONST_AlnumAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $FE, $FF, $FF, $07, $FE, $FF, $FF, $07
+  );
+  CONST_AlphaAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07, $FE, $FF, $FF, $07
+  );
+  CONST_BlankAMap: array[0..15] of Byte = (
+    $00, $02, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_CntrlAMap: array[0..15] of Byte = (
+    $FF, $FF, $FF, $FF, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $80
+  );
+  CONST_SpaceAMap: array[0..15] of Byte = (
+    $00, $3E, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_SpacePerlAMap: array[0..15] of Byte = (
+    $00, $36, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_GraphAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $FE, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $7F
+  );
+  CONST_LowerAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07
+  );
+  CONST_PrintAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $7F
+  );
+  CONST_PunctAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $FE, $FF, $00, $FC, $01, $00, $00, $F8, $01, $00, $00, $78
+  );
+  CONST_UpperAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07, $00, $00, $00, $00
+  );
+  CONST_XDigitAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $7E, $00, $00, $00, $7E, $00, $00, $00
+  );
+  CONST_WordAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $FE, $FF, $FF, $87, $FE, $FF, $FF, $07
+  );
+  CONST_DigitAMap: array[0..15] of Byte = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+
 {$IFDEF JapaneseExt}
   HalfToWideAnkTable: array[$0020 .. $007E] of UChar = (
     $3000, $FF01, $FF02, $FF03, $FF04, $FF05, $FF06, $FF07, $FF08, $FF09,
@@ -2387,54 +2435,39 @@ end;
 
 // ==========文字種判定用ルーチン==========
 
-function IsAlnum(Ch: UChar; IsASCII: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
+function IsAlnumA(Ch: UChar): Boolean; inline;
+begin
+  Result := (Ch < 128) and
+    (CONST_AlnumAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsAlnumU(Ch: UChar): Boolean;
 var
   up, ug: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
+  up := GetUnicodeCategory(Ch);
+  if up = upNd then
+    Result := True
+  else
   begin
-    up := GetUnicodeCategory(Ch);
     ug := UnicodeGeneralCategoryTable[up];
 
-    Result := (ug = upL) or (ug = upM) or (up = upNd);
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
-    case Ch of
-      Ord('A')..Ord('Z'), Ord('a')..Ord('z'), Ord('0')..Ord('9'):
-        Result := True;
-      else
-        Result := False;
-    end;
+    Result := ug in [upL, upM];
   end;
 end;
 
-function IsAlpha(Ch: UChar; IsASCII: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
+function IsAlphaA(Ch: UChar): Boolean; inline;
+begin
+  Result := (Ch < 128) and
+      (CONST_AlphaAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsAlphaU(Ch: UChar): Boolean; inline;
 var
   up: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-  begin
-    up := GetUnicodeGeneralCategory(Ch);
-    Result := up in [upL, upM];
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
-    case Ch of
-      Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
-        Result := True;
-      else
-        Result := False;
-    end;
-  end;
+  up := GetUnicodeGeneralCategory(Ch);
+  Result := up in [upL, upM];
 end;
 
 function IsAscii(Ch: UChar): Boolean; inline;
@@ -2442,215 +2475,187 @@ begin
   Result := Ch <= $7F;
 end;
 
-function IsBlank(Ch: UChar; IsASCII: Boolean): Boolean;
+function IsBlankA(Ch: UChar): Boolean; inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-  begin
-    Result := (Ch = $9) or (GetUnicodeCategory(Ch) = upZs);
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
 //    [ \t]
-    case Ch of
-      $0009, $0020:
-        Result := True;
-      else
-        Result := False;
-    end;
-  end;
+  Result := (Ch < 128) and
+    (CONST_BlankAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
-function IsCntrl(Ch: UChar; IsASCII: BOolean): Boolean;
+function IsBlankU(Ch: UChar): Boolean; inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-  begin
-    Result := GetUnicodeCategory(Ch) = upCc;
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
+  Result := (Ch = 9) or
+    (GetUnicodeCategory(Ch) = upZs);
+end;
+
+function IsCntrlA(Ch: UChar): Boolean; overload; inline;
+begin
 //  [\x00-\x1F\x7F]
-    case Ch of
-      0..$001F, $007F:
-        Result := True;
-      else
-        Result := False;
-    end;
+  Result := (Ch < 128) and
+    (CONST_CntrlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsCntrlU(Ch: UChar): Boolean; inline;
+begin
+  Result := GetUnicodeCategory(Ch) = upCc;
+end;
+
+function IsDigitA(Ch: UChar): Boolean; inline;
+begin
+  Assert(Ch < 128, 'invalid parameter');
+  Result :=
+    (CONST_DigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsDigitU(Ch: UChar): Boolean; inline;
+begin
+  Result := GetUnicodeCategory(Ch) = upNd;
+end;
+
+function IsSpaceA(Ch: UChar): Boolean; inline;
+begin
+  Result := (Ch < 128) and
+    (CONST_SpaceAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsSpaceU(Ch: UChar): Boolean; inline;
+begin
+  if not IsSpaceA(Ch) then
+    Result := (GetUnicodeGeneralCategory(Ch) = upZ)
+  else
+    Result := True;
+end;
+
+function IsSpacePerlA(Ch: UChar): Boolean; inline; overload;
+begin
+  Assert(Ch < 128, 'invaild parameter');
+  Result :=
+    (CONST_SpacePerlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsSpacePerlU(Ch: UChar): Boolean; inline; overload;
+begin
+  if (Ch < 128) and IsSpacePerlA(Ch) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  case Ch of
+    $0085, $2028, $2029:
+      Result := True;
+    else
+      Result := GetUnicodeGeneralCategory(Ch) = upZ;
   end;
 end;
 
-function IsDigit(Ch: UChar; IsAscii: Boolean): Boolean;
+function IsGraphA(Ch: UChar): Boolean; inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := GetUnicodeCategory(Ch) = upNd
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    case Ch of
-      Ord('0')..Ord('9'):
-        Result := True;
-      else
-        Result := False;
-    end;
-end;
-
-function IsSpace(Ch: UChar; IsASCII: Boolean ): Boolean;
-begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := (Ch = $9) or (Ch = $A) or (Ch = $B) or (Ch = $C) or (Ch = $D) or
-      (Ch = $20) or (GetUnicodeGeneralCategory(Ch) = upZ)
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    Result := (Ch = $9) or (Ch = $A) or (Ch = $B) or (Ch = $C) or (Ch = $D) or
-      (Ch = $20);
-end;
-
-function IsSpacePerl(Ch: UChar; IsASCII: Boolean): Boolean;
-begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := (Ch = $9) or (Ch = $A) or (Ch = $C) or (Ch = $D) or (Ch = $85) or
-      (Ch = $2028) or (Ch = $2029) or (GetUnicodeGeneralCategory(Ch) = upZ)
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    Result := (Ch = $9) or (Ch = $A) or (Ch = $C) or (Ch = $D) or (Ch = $20);
-end;
-
-function IsGraph(Ch: UChar; IsASCII: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
-var
-  up: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
-begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-  begin
-    up := GetUnicodeCategory(Ch);
-    Result := not IsSpace(Ch, False) and (up <> upCc) and (up <> upCn) and
-      (up <> upCs);
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
 //  [\x21-\x7E]
-    case Ch of
-      $21..$7E:
-        Result := True;
-      else
-        Result := False;
-    end;
-  end;
+  Result := (Ch < 128) and
+    (CONST_GraphAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
-function IsLower(Ch: UChar; IsASCII: Boolean): Boolean;
-begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := GetUnicodeCategory(Ch) = upLl
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    case Ch of
-      Ord('a')..Ord('z'):
-        Result := True;
-      else
-        Result := False;
-    end;
-end;
-
-function IsPrint(Ch: UChar; IsASCII: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
+function IsGraphU(Ch: UChar): Boolean;
 var
   up: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
+//[\P{IsSpace}\P{Cc}\P{Cn}\P{Cs}]と同じ
+  if IsSpaceU(Ch) then
+    Result := False
+  else
   begin
     up := GetUnicodeCategory(Ch);
-
-    Result := ((Ch in [$9, $A, $B, $C, $D, $85]) or
-      (GetUnicodeGeneralCategory(Ch) = upZ)) or
-      ((up <> upCc) and (up <> upCn) and (up <> upCs));
-  end
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
-//  [\x20-\x7E]
-    case Ch of
-      $20..$7E:
-        Result := True;
-      else
-        Result := False;
-    end;
+    Result := (up <> upCc) and (up <> upCn) and (up <> upCs);
   end;
 end;
 
-function IsPunct(Ch: UChar; IsASCII: Boolean): Boolean;
+function IsLowerA(Ch: UChar): Boolean; inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := GetUnicodeGeneralCategory(Ch) = upP
+  Result := (Ch < 128) and
+    (CONST_LowerAMap[Ch div 8] and (1 shl (Ch and 7)) <> 0);
+end;
+
+function IsLowerU(Ch: UChar): Boolean; inline;
+begin
+  Result := GetUnicodeCategory(Ch) = upLl;
+end;
+
+function IsPrintA(Ch: UChar): Boolean; inline;
+begin
+//  [\x20-\x7E]
+  Result := (Ch < 128) and
+    (CONST_PrintAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsPrintU(Ch: UChar): Boolean;
+var
+  up: TUnicodeProperty;
+begin
+  if Ch = $0085 then
+    Result := True
   else
-{$ENDIF USE_UNICODE_PROPERTY}
+  begin
+    up := GetUnicodeCategory(Ch);
+    Result := (GetUnicodeGeneralCategory(Ch) = upZ) or
+      ((up <> upCc) and (up <> upCn) and (up <> upCs));
+  end;
+end;
+
+function IsPunctA(Ch: UChar): Boolean;  inline;
+begin
 //[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]
-    case Ch of
-      Ord('!'), Ord('"'), Ord('#'), Ord('$'), Ord('%'), Ord('&'), Ord(''''),
-      Ord('('), Ord(')'), Ord('*'), Ord('+'), Ord(','), Ord('-'), Ord('.'),
-      Ord('/'), Ord(':'), Ord(';'), Ord('<'), Ord('='), Ord('>'), Ord('?'),
-      Ord('@'), Ord('['), Ord('\'), Ord(']'), Ord('^'), Ord('_'), Ord('`'),
-      Ord('{'), Ord('|'), Ord('}'), Ord('~'):
-        Result := True;
-      else
-        Result := False;
-    end;
+  Result := (Ch < 128) and
+    (CONST_PunctAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
-function IsUpper(Ch: UChar; IsASCII: Boolean): Boolean;
+function IsPunctU(Ch: UChar): Boolean;  inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := GetUnicodeCategory(Ch) = upLu
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    case Ch of
-      Ord('A')..Ord('Z'):
-        Result := True;
-      else
-        Result := False;
-    end;
+  Result := GetUnicodeGeneralCategory(Ch) = upP;
 end;
 
-function IsXDigit(Ch: UChar): Boolean;
+function IsUpperA(Ch: UChar): Boolean; inline;
 begin
-  Result := ((Ch >= $30) and (Ch <= $39)) or ((Ch >= $41) and (Ch <= $46)) or
-    ((Ch >= $61) and (Ch <= $66));
+  Result := (Ch < 128) and
+    (CONST_UpperAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
-function IsWord(Ch: UChar; IsASCII: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
+function IsUpperU(Ch: UChar): Boolean; inline;
+begin
+  Result := GetUnicodeCategory(Ch) = upLu;
+end;
+
+function IsXDigit(Ch: UChar): Boolean; inline;
+begin
+  Result := (Ch < 128) and
+    (CONST_XDigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsWordA(Ch: UChar): Boolean; inline; overload;
+begin
+  Assert(Ch > 128, 'IsWordA invalied Parameter');
+  Result :=
+    (CONST_WordAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
+end;
+
+function IsWordU(Ch: UChar): Boolean; overload;
 var
   up, ug: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
+  if not IsWordA(Ch) then
   begin
     up := GetUnicodeCategory(Ch);
-    ug := UnicodeGeneralCategoryTable[up];
-
-    Result := (ug = upL) or (ug = upM) or (up = upNd) or (up = upPc);
+    if up in [upNd, upPc] then
+      Result := True
+    else
+    begin
+      ug := UnicodeGeneralCategoryTable[up];
+      Result := (ug in [upL, upM]);
+    end;
+  //      (ug = upL) or (ug = upM) or (up = upNd) or (up = upPc);
   end
   else
-{$ENDIF USE_UNICODE_PROPERTY}
-  begin
-    Result := ((Ch >= Ord('A')) and (Ch <= Ord('Z'))) or
-      ((Ch >= Ord('a')) and (Ch <= Ord('z'))) or
-      ((Ch >= Ord('0')) and (Ch <= Ord('9'))) or (Ch = Ord('_'));
-  end;
+    Result := True;
 end;
 
 function IsAny(Ch: UChar): Boolean; inline;
@@ -2658,73 +2663,30 @@ begin
   Result := True;
 end;
 
-function IsAssigned(Ch: UChar; IsASCII: Boolean): Boolean; inline;
+function IsAssignedA(Ch: UChar): Boolean; inline;
 begin
-{$IFDEF USE_UNICODE_PROPERTY}
-  if not IsASCII then
-    Result := GetUnicodeCategory(Ch) <> upCn
-  else
-{$ENDIF USE_UNICODE_PROPERTY}
-    Result := True;
+  Result := True;
 end;
 
-function IsAnkWord(P: PWideChar): Boolean; inline; overload;
+function IsAssignedU(Ch: UChar): Boolean; inline;
 begin
-  Result := (P^ = '_') or ((P^ >= 'A') and (P^ <= 'Z')) or
-    ((P^ >= 'a') and (P^ <= 'z')) or ((P^ >= '0') and (P^ <= '9'));
+  Result := GetUnicodeCategory(Ch) <> upCn;
 end;
 
-function IsAnkDigit(P: PWideChar): Boolean; inline; overload;
+function IsSpaceHorizontal(Ch: UChar): Boolean; inline; overload;
 begin
-  Result := (P^ >= '0') and (P^ <= '9');
-end;
-
-function IsAnkSpace(P: PWideChar): Boolean; inline; overload;
-begin
-  Result := (P^ = #$0009) or (P^ = #$000A) or (P^ = #$000B) or (P^ = #$000C) or
-    (P^ = #$000D) or (P^ = #$0020);
-end;
-
-function IsHexDigit(Ch: UChar): Boolean; inline; overload;
-begin
-  Result := ((Ch >= $30) and (Ch <= $39)) or ((Ch >= $41) and (Ch <= $46)) or
-    ((Ch >= $61) and (Ch <= $66));
-end;
-
-function IsHorizontalWhiteSpace(P: PWideChar): Boolean; inline; overload;
-begin
-  case P^ of
-    #$0009, #$0020, #$00A0, #$1680, #$180E, #$2000 .. #$200A, #$202F,
-      #$205F, #$3000:
+  case Ch of
+    $0009, $0020, $00A0, $1680, $180E, $2000 .. $200A, $202F,
+      $205F, $3000:
       Result := True
   else
     Result := False;
   end;
 end;
 
-function IsHorizontalWhiteSpace(W: UChar): Boolean; inline; overload;
+function IsSpaceVertical(Ch: UChar): Boolean; inline; overload;
 begin
-  case W of
-    0009, $0020, $00A0, $1680, $180E, $2000 .. $200A, $202F, $205F, $3000:
-      Result := True
-  else
-    Result := False;
-  end;
-end;
-
-function IsVerticalWhiteSpace(P: PWideChar): Boolean; inline; overload;
-begin
-  case P^ of
-    #$000A, #$000B, #$000C, #$000D, #$0085, #$2028, #$2029:
-      Result := True
-  else
-    Result := False;
-  end;
-end;
-
-function IsVerticalWhiteSpace(W: UChar): Boolean; inline; overload;
-begin
-  case W of
+  case Ch of
     $000A, $000B, $000C, $000D, $0085, $2028, $2029:
       Result := True
   else
@@ -2732,98 +2694,147 @@ begin
   end;
 end;
 
-function IsPosixClass(Ch: UChar; AClass: TREPosixClassKind;
-  AIsASCII: Boolean; IgnoreCase: Boolean): Boolean;
-{$IFDEF USE_UNICODE_PROPERTY}
-var
-  up: TUnicodeProperty;
-{$ENDIF USE_UNICODE_PROPERTY}
+function IsDefinedCharClassA(Ch: UChar; AClass: TREPosixClassKind;
+  IgnoreCase: Boolean): Boolean;
 begin
   case AClass of
     pckAlnum:
-      Result := IsAlnum(Ch, AIsASCII);
+      Result := IsAlnumA(Ch);
     pckAlpha:
-      Result := IsAlpha(Ch, AIsASCII);
+      Result := IsAlphaA(Ch);
     pckAscii:
       Result := IsASCII(Ch);
     pckBlank:
-      Result := IsBlank(Ch, AIsASCII);
+      Result := IsBlankA(Ch);
     pckCntrl:
-      Result := IsCntrl(Ch, AIsASCII);
+      Result := IsCntrlA(Ch);
     pckDigit:
-      Result := IsDigit(Ch, AIsASCII);
+      Result := IsDigitA(Ch);
     pckGraph:
-      Result := IsGraph(Ch, AIsASCII);
+      Result := IsGraphA(Ch);
     pckLower:
       begin
         if not IgnoreCase then
         begin
-          Result := IsLower(Ch, AIsASCII);
+          Result := IsLowerA(Ch);
         end
         else
         begin
-{$IFDEF USE_UNICODE_PROPERTY}
-          if not AIsASCII then
-          begin
-            up := GetUnicodeCategory(Ch);
-            Result := (up = upLu) or (up = upLl);
-          end
-          else
-{$ENDIF USE_UNICODE_PROPERTY}
-          begin
-            case Ch of
-              Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
-                Result := True;
-              else
-                Result := False;
-            end;
+          case Ch of
+            Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
+              Result := True;
+            else
+              Result := False;
           end;
         end;
       end;
     pckPrint:
-      Result := IsPrint(Ch, AIsASCII);
+      Result := IsPrintA(Ch);
     pckUpper:
       begin
         if not IgnoreCase then
         begin
-          Result := IsUpper(Ch, AIsASCII);
+          Result := IsUpperA(Ch);
         end
         else
         begin
-{$IFDEF USE_UNICODE_PROPERTY}
-          if not AIsASCII then
-          begin
-            up := GetUnicodeCategory(Ch);
-            Result := (up = upLu) or (up = upLl);
-          end
-          else
-{$ENDIF USE_UNICODE_PROPERTY}
-          begin
-            case Ch of
-              Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
-                Result := True;
-              else
-                Result := False;
-            end;
+          case Ch of
+            Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
+              Result := True;
+            else
+              Result := False;
           end;
         end;
       end;
     pckPunct:
-      Result := IsPunct(Ch, AIsASCII);
+      Result := IsPunctA(Ch);
     pckSpace:
-      Result := IsSpace(Ch, AIsASCII);
+      Result := IsSpaceA(Ch);
     pckSpacePerl:
-      Result := IsSpacePerl(Ch, AIsASCII);
+      Result := IsSpacePerlA(Ch);
+    pckSpaceVertical:
+      Result := IsSpaceVertical(Ch);
+    pckSpaceHorizontal:
+      Result := IsSpaceHorizontal(Ch);
     pckXdigit:
       Result := IsXDigit(Ch);
     pckWord:
-      Result := IsWord(Ch, AIsASCII);
+      Result := IsWordA(Ch);
     pckAssigned:
-      Result := IsAssigned(Ch, AIsASCII);
+      Result := IsAssignedA(Ch);
   else
     Result := IsAny(Ch);
   end;
 end;
+
+{$IFDEF USE_UNICODE_PROPERTY}
+function IsDefinedCharClassU(Ch: UChar; AClass: TREPosixClassKind;
+  IgnoreCase: Boolean): Boolean;
+var
+  up: TUnicodeProperty;
+begin
+  case AClass of
+    pckAlnum:
+      Result := IsAlnumU(Ch);
+    pckAlpha:
+      Result := IsAlphaU(Ch);
+    pckAscii:
+      Result := IsASCII(Ch);
+    pckBlank:
+      Result := IsBlankU(Ch);
+    pckCntrl:
+      Result := IsCntrlU(Ch);
+    pckDigit:
+      Result := IsDigitU(Ch);
+    pckGraph:
+      Result := IsGraphU(Ch);
+    pckLower:
+      begin
+        if not IgnoreCase then
+        begin
+          Result := IsLowerU(Ch);
+        end
+        else
+        begin
+          up := GetUnicodeCategory(Ch);
+          Result := (up = upLu) or (up = upLl);
+        end;
+      end;
+    pckPrint:
+      Result := IsPrintU(Ch);
+    pckUpper:
+      begin
+        if not IgnoreCase then
+        begin
+          Result := IsUpperU(Ch);
+        end
+        else
+        begin
+          up := GetUnicodeCategory(Ch);
+          Result := (up = upLu) or (up = upLl);
+        end;
+      end;
+    pckPunct:
+      Result := IsPunctU(Ch);
+    pckSpace:
+      Result := IsSpaceU(Ch);
+    pckPunctPerl:
+      Result := IsSpacePerlU(Ch);
+    pckPunctVertical:
+      Result := IsSpaceVertical(Ch);
+    pckPunctHorizontal:
+      Result := IsSpaceHorizontal(Ch);
+    pckXdigit:
+      Result := IsXDigit(Ch);
+    pckWord:
+      Result := IsWordU(Ch);
+    pckAssigned:
+      Result := IsAssignedU(Ch);
+  else
+    Result := IsAny(Ch);
+  end;
+end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 // ==========文字列検索用ルーチン==========
 
@@ -2930,12 +2941,7 @@ begin
       end
       else
       begin
-        if IsNoLeadChar(P1^) then
-        begin
-          C1 := UChar(P1^);
-          Inc(P1);
-        end
-        else
+        if IsLeadChar(P1^) then
         begin
           C1 := ((WORD(P1^) and $03FF) shl 10) +
             ((WORD((P1 + 1)^) and $03FF) + $10000);
@@ -4799,6 +4805,7 @@ begin
   inherited Create(ARegExp);
   FOptions := AOptions;
   FNegative := ANegative;
+  FIsASCII := GetASCIIMode(FOptions);
 end;
 
 function TREWordCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -4809,15 +4816,26 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if IsNoLeadChar(AStr^) then
+  if AStr < #$128 then
   begin
-    Result := IsWord(ToUChar(AStr), GetASCIIMode(FOptions));
+    Result := IsWordA(Ord(AStr^));
     Len := 1;
   end
   else
   begin
-    Result := IsWord(ToUChar(AStr), GetASCIIMode(FOptions));
-    Len := 2;
+    if not FIsASCII then
+    begin
+      if IsNoLeadChar(AStr^) then
+      begin
+        Result := IsWordU(Ord(AStr^));
+        Len := 1;
+      end
+      else
+      begin
+        Result := IsWordU(ToUChar(AStr));
+        Len := 2;
+      end;
+    end;
   end;
 
   if FNegative then
@@ -4860,9 +4878,12 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result := IsWord(
-        ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-        GetASCIIMode(FOptions));
+      if FIsASCII then
+        Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
+          IsWordA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+      else
+        Result := IsWordU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+
       if FNegative then
         Result := not Result;
     end
@@ -4893,6 +4914,7 @@ begin
   inherited Create(ARegExp);
   FOptions := AOptions;
   FNegative := ANegative;
+  FIsASCII := GetASCIIMode(FOptions)
 end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -4903,15 +4925,26 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if IsNoLeadChar(AStr^) then
+  if AStr^ < #128 then
   begin
-    Result := IsDigit(ToUChar(AStr), GetASCIIMode(FOptions));
+    Result := IsDigitA(Ord(AStr^));
     Len := 1;
   end
   else
   begin
-    Result := IsDigit(ToUChar(AStr), GetASCIIMode(FOptions));
-    Len := 2;
+    if not FIsASCII then
+    begin
+      if IsNoLeadChar(AStr^) then
+      begin
+        Result := IsDigitU(Ord(AStr^));
+        Len := 1;
+      end
+      else
+      begin
+        Result := IsDigitU(ToUChar(AStr));
+        Len := 2;
+      end;
+    end;
   end;
 
   if FNegative then
@@ -4947,9 +4980,12 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result := IsDigit(
-        ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-        GetASCIIMode(FOptions));
+      if FIsASCII then
+        Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
+          IsDigitA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+      else
+        Result := IsDigitU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+
       if FNegative then
         Result := not Result;
     end
@@ -4976,6 +5012,7 @@ begin
   inherited Create(ARegExp);
   FOptions := AOptions;
   FNegative := ANegative;
+  FIsASCII := GetASCIIMode(FOptions);
 end;
 
 function TRESpaceCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -4986,15 +5023,27 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if IsNoLeadChar(AStr^) then
+  if AStr^ < #128 then
   begin
-    Result := IsSpacePerl(ToUChar(AStr), GetASCIIMode(FOptions));
+    Result := IsSpacePerlA(Ord(AStr^));
     Len := 1;
   end
   else
   begin
-    Result := IsSpacePerl(ToUChar(AStr), GetASCIIMode(FOptions));
-    Len := 2;
+    if FIsASCII then
+    begin
+      if IsNoLeadChar(AStr^) then
+      begin
+        Result := IsSpacePerlU(Ord(AStr^));
+        Len := 1;
+      end
+      else
+      begin
+        Result := IsSpacePerlU(ToUChar(AStr));
+        Len := 2;
+      end;
+
+    end;
   end;
 
   if FNegative then
@@ -5030,9 +5079,13 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result := IsSpacePerl
-        (ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-        GetASCIIMode(FOptions));
+      if FIsASCII then
+        Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
+          IsSpacePerlA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+      else
+        Result :=
+          IsSpacePerlU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+
       if FNegative then
         Result := not Result;
     end
