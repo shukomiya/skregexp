@@ -331,6 +331,9 @@ end;
 
 procedure TTestSkRegExp.TestRepace;
 begin
+  FRegExp.Expression := '(\d{2,4})\s?\-\s?ab';
+  Check(FRegExp.Replace('20-ab abc', '$1-abc') = '20-abc abc', '20-ab abc');
+
   FRegExp.Expression := 'e';
   Check(FRegExp.Replace('We have Beatles.', '$1') = 'W hav Batls.',
     'We have Beatles.');
