@@ -1317,13 +1317,6 @@ type
     property Names[AName: REString]: TGroup read GetNames;
   end;
 
-{$IFDEF CONDITIONALEXPRESSIONS}
-{$IF CompilerVersion >= 16.0}
-  PPointerList = ^TPointerList;
-  TPointerList = array [0 .. MaxListSize - 1] of Pointer;
-{$IFEND}
-{$ENDIF}
-
   TREGroupStack = class
   private
     FRegExp: TSkRegExp;
@@ -1353,6 +1346,13 @@ type
     NestLevel: Integer;
   end;
   PREBackTrackStateRec = ^TREBackTrackStateRec;
+
+{$IFDEF CONDITIONALEXPRESSIONS}
+{$IF CompilerVersion >= 16.0}
+  PPointerList = ^TPointerList;
+  TPointerList = array [0 .. MaxListSize - 1] of Pointer;
+{$IFEND}
+{$ENDIF}
 
   { バックトラック用のステートを保存するクラス }
   TREBackTrackStack = class
