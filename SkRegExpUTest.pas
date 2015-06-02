@@ -1271,6 +1271,7 @@ procedure Test(ADest: TStrings);
   begin
     R := TSkRegExp.Create;
     try
+      try
       R.Expression := Expression;
       R.InputString := Source;
       if R.ExecPos(1) then
@@ -1284,7 +1285,10 @@ procedure Test(ADest: TStrings);
           Inc(I);
         until not R.ExecNext;
       end;
-
+      except
+        on E: ESkRegExp do
+        ADest.Add('(e):''' + Expression + ''', ''' + Source + '''');
+      end;
     finally
       R.Free;
     end;
@@ -2113,7 +2117,7 @@ begin
 
   TestMatchAll('(?m)^.*$',
     'abc'#0013#0010'123'#0013#0010'def'#0013#0010'456'#0013#0010,
-    ['abc', '123', 'def', '456', '']);
+    ['abc', '', '123', '', 'def', '', '456', '']);
 
   TestMatchAll('(?m)\#.+?\#|\$.+?\$|\r\n',
     'ああああ$いいいい$'#$0d#$0a'うううう#ええええ#'#$d#$0a'おおおお',

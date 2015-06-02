@@ -2328,6 +2328,21 @@ begin
       ((WORD((AStr + 1)^) and $03FF) + $10000);
 end;
 
+function ToUChar(AStr: PWideChar; out Len: Integer): UChar; inline; overload;
+begin
+  if IsNoLeadChar(AStr^) then
+  begin
+    Result := UChar(AStr^);
+    Len := 1;
+  end
+  else
+  begin
+    Result := ((WORD(AStr^) and $03FF) shl 10) +
+      ((WORD((AStr + 1)^) and $03FF) + $10000);
+    Len := 2;
+  end;
+end;
+
 function ToUChar(const S: REString; const Index: Integer): UChar; inline; overload;
 begin
   if IsNoLeadChar(S[Index]) then
@@ -2651,19 +2666,14 @@ function IsWordU(Ch: UChar): Boolean; overload;
 var
   up, ug: TUnicodeProperty;
 begin
-  if (Ch < 128) and IsWordA(Ch) then
+  //      (ug = upL) or (ug = upM) or (up = upNd) or (up = upPc);
+  up := GetUnicodeCategory(Ch);
+  if up in [upNd, upPc] then
     Result := True
   else
   begin
-    up := GetUnicodeCategory(Ch);
-    if up in [upNd, upPc] then
-      Result := True
-    else
-    begin
-      ug := UnicodeGeneralCategoryTable[up];
-      Result := (ug in [upL, upM]);
-    end;
-  //      (ug = upL) or (ug = upM) or (up = upNd) or (up = upPc);
+    ug := UnicodeGeneralCategoryTable[up];
+    Result := (ug in [upL, upM]);
   end;
 end;
 
@@ -4749,13 +4759,19 @@ begin
   begin
     Result := True;
 
-    Inc(AStr);
+    if IsLeadChar(AStr^) then
+      Inc(AStr, 2)
+    else
+      Inc(AStr);
   end
   else
   begin
     if FRegExp.IsLineBreak(AStr) = 0 then
     begin
-      Inc(AStr);
+      if IsLeadChar(AStr^) then
+        Inc(AStr, 2)
+      else
+        Inc(AStr);
 
       Result := True;
     end;
@@ -4832,32 +4848,34 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if AStr^ < #128 then
+  if not FNegative then
   begin
-    Result := IsWordA(UChar(AStr^));
-    Len := 1;
+    if AStr^ < #128 then
+    begin
+      Result := IsWordA(UChar(AStr^));
+      if Result then
+        Len := 1;
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := IsWordU(ToUChar(AStr, Len));
+    end;
   end
   else
   begin
-    if not FIsASCII then
+    if AStr^ < #128 then
     begin
-      if IsNoLeadChar(AStr^) then
-      begin
-        Result := IsWordU(UChar(AStr^));
+      Result := not IsWordA(UChar(AStr^));
+      if Result then
         Len := 1;
-      end
-      else
-      begin
-        Result := IsWordU(ToUChar(AStr));
-        Len := 2;
-      end;
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := not IsWordU(ToUChar(AStr, Len));
     end;
   end;
-
-  if FNegative then
-    Result := not Result;
-  if not Result then
-    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -4941,32 +4959,34 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if AStr^ < #128 then
+  if not FNegative then
   begin
-    Result := IsDigitA(UChar(AStr^));
-    Len := 1;
+    if AStr^ < #128 then
+    begin
+      Result := IsDigitA(UChar(AStr^));
+      if Result then
+        Len := 1;
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := IsDigitU(ToUChar(AStr, Len));
+    end;
   end
   else
   begin
-    if not FIsASCII then
+    if AStr^ < #128 then
     begin
-      if IsNoLeadChar(AStr^) then
-      begin
-        Result := IsDigitU(UChar(AStr^));
+      Result := not IsDigitA(UChar(AStr^));
+      if Result then
         Len := 1;
-      end
-      else
-      begin
-        Result := IsDigitU(ToUChar(AStr));
-        Len := 2;
-      end;
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := not IsDigitU(ToUChar(AStr, Len));
     end;
   end;
-
-  if FNegative then
-    Result := not Result;
-  if not Result then
-    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -5039,33 +5059,34 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if AStr^ < #128 then
+  if not FNegative then
   begin
-    Result := IsSpacePerlA(UChar(AStr^));
-    Len := 1;
+    if AStr^ < #128 then
+    begin
+      Result := IsSpacePerlA(UChar(AStr^));
+      if Result then
+        Len := 1;
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := IsSpacePerlU(ToUChar(AStr, Len));
+    end;
   end
   else
   begin
-    if not FIsASCII then
+    if AStr^ < #128 then
     begin
-      if IsNoLeadChar(AStr^) then
-      begin
-        Result := IsSpacePerlU(UChar(AStr^));
+      Result := not IsSpacePerlA(UChar(AStr^));
+      if Result then
         Len := 1;
-      end
-      else
-      begin
-        Result := IsSpacePerlU(ToUChar(AStr));
-        Len := 2;
-      end;
-
+    end
+    else
+    begin
+      if not FIsASCII then
+        Result := not IsSpacePerlU(ToUChar(AStr, Len));
     end;
   end;
-
-  if FNegative then
-    Result := not Result;
-  if not Result then
-    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -6245,7 +6266,7 @@ begin
 
   Ch := GetREChar(AStr, L, FCompareOptions, LFold);
 
-  if FIsASCII then
+  if FIsASCII and (FPosixClass <> pckAny) then
     Result := (Ch < 128) and
       IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions)
   else
@@ -12937,20 +12958,20 @@ begin
           end
           else
           begin
-            while (FRegExp.IsLineBreak(AStr) = 0) and
-                (AStr <= FRegExp.FMatchEndP) do
-              Inc(AStr);
-
-            L := FRegExp.IsLineBreak(AStr);
-            if L > 0 then
-            begin
-              repeat
-                Inc(AStr, L);
-                L := FRegExp.IsLineBreak(AStr);
-              until L = 0;
-            end
-            else
-              Break;
+//            while (FRegExp.IsLineBreak(AStr) = 0) and
+//                (AStr <= FRegExp.FMatchEndP) do
+//              Inc(AStr);
+//
+//            L := FRegExp.IsLineBreak(AStr);
+//            if L > 0 then
+//            begin
+//              repeat
+//                Inc(AStr, L);
+//                L := FRegExp.IsLineBreak(AStr);
+//              until L = 0;
+//            end
+//            else
+//              Break;
           end;
         end;
       end;
