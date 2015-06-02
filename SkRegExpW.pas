@@ -2827,7 +2827,7 @@ begin
       Result := IsPunctU(Ch);
     pckSpace:
       Result := IsSpaceU(Ch);
-    pckPunctPerl:
+    pckSpacePerl:
       Result := IsSpacePerlU(Ch);
     pckPunctVertical:
       Result := IsSpaceVertical(Ch);
