@@ -536,6 +536,7 @@ type
   private
     FOptions: TREOptions;
     FNegative: Boolean;
+    FIsASCII: Boolean;
   protected
     function GetCharLength: TRETextPosRec; override;
   public
@@ -653,6 +654,7 @@ type
     FOptions: TREOptions;
     FCompareOptions: TRECompareOptions;
     FNegative: Boolean;
+    FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
       AOptions: TREOptions; ANegative: Boolean);
@@ -1724,7 +1726,8 @@ function REStrLIAComp(const Str1, Str2: PWideChar; MaxLen:Cardinal): Integer; in
 {$ELSE UNICODE}
 function REStrLIAComp(const Str1, Str2: PWideChar; MaxLen:Cardinal): Integer;
 {$ENDIF UNICODE}
-function ToUChar(AStr: PWideChar): UChar; inline;
+function ToUChar(AStr: PWideChar): UChar; inline; overload;
+function ToUChar(const S: REString; const Index: Integer): UChar; inline; overload;
 function UCharToString(AWChar: UChar): REString; inline;
 function ToFoldCase(const S: REString; IsASCII: Boolean): REString;
 {$IFDEF JapaneseExt}
@@ -2316,13 +2319,22 @@ end;
 
 // ==========文字入出力用ルーチン==========
 
-function ToUChar(AStr: PWideChar): UChar; inline;
+function ToUChar(AStr: PWideChar): UChar; inline; overload;
 begin
   if IsNoLeadChar(AStr^) then
     Result := UChar(AStr^)
   else
     Result := ((WORD(AStr^) and $03FF) shl 10) +
       ((WORD((AStr + 1)^) and $03FF) + $10000);
+end;
+
+function ToUChar(const S: REString; const Index: Integer): UChar; inline; overload;
+begin
+  if IsNoLeadChar(S[Index]) then
+    Result := UChar(S[Index])
+  else
+    Result := ((WORD(S[Index]) and $03FF) shl 10) +
+      ((WORD(S[Index + 1]) and $03FF) + $10000);
 end;
 
 function UCharToString(AWChar: UChar): REString; inline;
@@ -2437,7 +2449,7 @@ end;
 
 function IsAlnumA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
     (CONST_AlnumAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2458,7 +2470,7 @@ end;
 
 function IsAlphaA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
       (CONST_AlphaAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2478,7 +2490,7 @@ end;
 function IsBlankA(Ch: UChar): Boolean; inline;
 begin
 //    [ \t]
-  Result := (Ch < 128) and
+  Result :=
     (CONST_BlankAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2491,7 +2503,7 @@ end;
 function IsCntrlA(Ch: UChar): Boolean; overload; inline;
 begin
 //  [\x00-\x1F\x7F]
-  Result := (Ch < 128) and
+  Result :=
     (CONST_CntrlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2502,7 +2514,6 @@ end;
 
 function IsDigitA(Ch: UChar): Boolean; inline;
 begin
-  Assert(Ch < 128, 'invalid parameter');
   Result :=
     (CONST_DigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
@@ -2514,21 +2525,20 @@ end;
 
 function IsSpaceA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
     (CONST_SpaceAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 function IsSpaceU(Ch: UChar): Boolean; inline;
 begin
-  if not IsSpaceA(Ch) then
-    Result := (GetUnicodeGeneralCategory(Ch) = upZ)
+  if (Ch < 128) and IsSpaceA(Ch) then
+    Result := True
   else
-    Result := True;
+    Result := (GetUnicodeGeneralCategory(Ch) = upZ)
 end;
 
 function IsSpacePerlA(Ch: UChar): Boolean; inline; overload;
 begin
-  Assert(Ch < 128, 'invaild parameter');
   Result :=
     (CONST_SpacePerlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
@@ -2552,7 +2562,7 @@ end;
 function IsGraphA(Ch: UChar): Boolean; inline;
 begin
 //  [\x21-\x7E]
-  Result := (Ch < 128) and
+  Result :=
     (CONST_GraphAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2572,7 +2582,7 @@ end;
 
 function IsLowerA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
     (CONST_LowerAMap[Ch div 8] and (1 shl (Ch and 7)) <> 0);
 end;
 
@@ -2584,7 +2594,7 @@ end;
 function IsPrintA(Ch: UChar): Boolean; inline;
 begin
 //  [\x20-\x7E]
-  Result := (Ch < 128) and
+  Result :=
     (CONST_PrintAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2605,7 +2615,7 @@ end;
 function IsPunctA(Ch: UChar): Boolean;  inline;
 begin
 //[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]
-  Result := (Ch < 128) and
+  Result :=
     (CONST_PunctAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2616,7 +2626,7 @@ end;
 
 function IsUpperA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
     (CONST_UpperAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
@@ -2627,13 +2637,12 @@ end;
 
 function IsXDigit(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch < 128) and
+  Result :=
     (CONST_XDigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 function IsWordA(Ch: UChar): Boolean; inline; overload;
 begin
-  Assert(Ch > 128, 'IsWordA invalied Parameter');
   Result :=
     (CONST_WordAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
@@ -2642,7 +2651,9 @@ function IsWordU(Ch: UChar): Boolean; overload;
 var
   up, ug: TUnicodeProperty;
 begin
-  if not IsWordA(Ch) then
+  if (Ch < 128) and IsWordA(Ch) then
+    Result := True
+  else
   begin
     up := GetUnicodeCategory(Ch);
     if up in [upNd, upPc] then
@@ -2653,9 +2664,7 @@ begin
       Result := (ug in [upL, upM]);
     end;
   //      (ug = upL) or (ug = upM) or (up = upNd) or (up = upPc);
-  end
-  else
-    Result := True;
+  end;
 end;
 
 function IsAny(Ch: UChar): Boolean; inline;
@@ -2694,7 +2703,7 @@ begin
   end;
 end;
 
-function IsDefinedCharClassA(Ch: UChar; AClass: TREPosixClassKind;
+function IsPosixClassA(Ch: UChar; AClass: TREPosixClassKind;
   IgnoreCase: Boolean): Boolean;
 begin
   case AClass of
@@ -2768,7 +2777,7 @@ begin
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
-function IsDefinedCharClassU(Ch: UChar; AClass: TREPosixClassKind;
+function IsPosixClassU(Ch: UChar; AClass: TREPosixClassKind;
   IgnoreCase: Boolean): Boolean;
 var
   up: TUnicodeProperty;
@@ -2825,7 +2834,7 @@ begin
     pckPunctHorizontal:
       Result := IsSpaceHorizontal(Ch);
     pckXdigit:
-      Result := IsXDigit(Ch);
+      Result := (Ch < 128) and IsXDigit(Ch);
     pckWord:
       Result := IsWordU(Ch);
     pckAssigned:
@@ -2946,6 +2955,11 @@ begin
           C1 := ((WORD(P1^) and $03FF) shl 10) +
             ((WORD((P1 + 1)^) and $03FF) + $10000);
           Inc(P1, 2);
+        end
+        else
+        begin
+          C1 := UChar(P1^);
+          Inc(P1);
         end;
 {$IFDEF USE_UNICODE_PROPERTY}
         FD1 := GetUnicodeFoldCase(C1);
@@ -2975,16 +2989,16 @@ begin
       end
       else
       begin
-        if IsNoLeadChar(P2^) then
-        begin
-          C2 := UChar(P2^);
-          Inc(P2);
-        end
-        else
+        if IsLeadChar(P2^) then
         begin
           C2 := ((WORD(P2^) and $03FF) shl 10) +
             ((WORD((P2 + 1)^) and $03FF) + $10000);
           Inc(P2, 2);
+        end
+        else
+        begin
+          C2 := UChar(P2^);
+          Inc(P2);
         end;
 {$IFDEF USE_UNICODE_PROPERTY}
         FD2 := GetUnicodeFoldCase(C2);
@@ -3067,7 +3081,7 @@ end;
 
 }
 function RECompareString(SourceP: PWideChar; DestP: PWideChar; DestLen: Integer;
-  var MatchLen: Integer; Options: TRECompareOptions): Integer;
+  var MatchLen: Integer; Options: TRECompareOptions): Integer; inline;
 begin
   if (coIgnoreWidth in Options) or (coIgnoreKana in Options) then
     Result := REStrLJComp(SourceP, DestP, DestLen, MatchLen, Options)
@@ -4070,9 +4084,6 @@ begin
     end;
   end;
 
-  FStartChar := Min(AMap.FStartChar, FStartChar);
-  FLastChar := Max(AMap.FLastChar, FLastChar);
-
   if AMap.FHasUnicode and not FHasUnicode then
     FHasUnicode := True;
   if AMap.FIgnoreCase and not FIgnoreCase then
@@ -4088,8 +4099,6 @@ begin
   Clear;
   FMap := Source.FMap;
   FASCIIMap := Source.FASCIIMap;
-  FStartChar := Source.FStartChar;
-  FLastChar := Source.FLastChar;
   FCount := Source.FCount;
 end;
 
@@ -4117,8 +4126,6 @@ begin
   for I := 0 to High(FASCIIMap) do
     FASCIIMap[I] := 0;
 
-  FStartChar := $10FFFF;
-  FLastChar := 0;
   FHasUnicode := False;
   FIgnoreCase := False;
   FASCIIOnly := False;
@@ -4134,8 +4141,6 @@ constructor TRECharMap.Create;
 begin
   inherited Create;
   FCount := 0;
-  FStartChar := $10FFFF;
-  FLastChar := 0;
   FHasUnicode := False;
   FIgnoreCase := False;
   FASCIIOnly := False;
@@ -4151,14 +4156,14 @@ function TRECharMap.GetDebugStr: REString;
   begin
     if Last - Start > 0 then
     begin
-      if IsCntrl(Start, False) then
+      if IsCntrlA(Start) then
         StartS := Format('($%x)', [Start])
       else
       begin
         StartS := Format('%s($%x)', [UCharToString(Start), Start]);
       end;
 
-      if IsCntrl(Last, False) then
+      if IsCntrlA(Last) then
         LastS := Format('($%x)', [Last])
       else
       begin
@@ -4169,7 +4174,7 @@ function TRECharMap.GetDebugStr: REString;
     end
     else
     begin
-      if IsCntrl(Prev, False) then
+      if IsCntrlA(Prev) then
         StartS := Format('($%x)', [Prev])
       else
       begin
@@ -4234,22 +4239,33 @@ var
 begin
   Result := False;
 
-  Ch := ToUChar(AStr);
-
   if FIgnoreCase then
   begin
-    if Ch < $80 then
+    if AStr^ < #$80 then
     begin
-      if (Ch >= Ord('A')) and (Ch <= Ord('Z')) then
-        Ch := Ch xor $20;
+      if (AStr^ >= 'A') and (AStr^ <= 'Z') then
+        Ch := UChar(AStr^) xor $20
+      else
+        Ch := UChar(AStr^);
 {$IFDEF USE_UNICODE_PROPERTY}
     end
     else
     begin
+      Ch := ToUChar(AStr);
       FD := GetUnicodeFoldCase(Ch);
       Ch := FD[FD[0]];
 {$ENDIF USE_UNICODE_PROPERTY}
     end;
+  end
+  else
+  begin
+    if AStr^ < #$80 then
+      Ch := UChar(AStr^)
+    else
+      if IsNoLeadChar(AStr^) then
+        Ch := UChar(AStr^)
+      else
+        Ch := ToUChar(AStr);
   end;
 
   if Ch <= $FF then
@@ -4611,7 +4627,7 @@ begin
   begin
     IsW := IsLeadChar(FStrings[I]);
 
-    if not IsCntrl(ToUChar(@FStrings[I]), False) then
+    if not IsCntrlU(ToUChar(@FStrings[I])) then
     begin
       if IsW then
       begin
@@ -4816,9 +4832,9 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if AStr < #$128 then
+  if AStr^ < #128 then
   begin
-    Result := IsWordA(Ord(AStr^));
+    Result := IsWordA(UChar(AStr^));
     Len := 1;
   end
   else
@@ -4827,7 +4843,7 @@ begin
     begin
       if IsNoLeadChar(AStr^) then
       begin
-        Result := IsWordU(Ord(AStr^));
+        Result := IsWordU(UChar(AStr^));
         Len := 1;
       end
       else
@@ -4927,7 +4943,7 @@ begin
 
   if AStr^ < #128 then
   begin
-    Result := IsDigitA(Ord(AStr^));
+    Result := IsDigitA(UChar(AStr^));
     Len := 1;
   end
   else
@@ -4936,7 +4952,7 @@ begin
     begin
       if IsNoLeadChar(AStr^) then
       begin
-        Result := IsDigitU(Ord(AStr^));
+        Result := IsDigitU(UChar(AStr^));
         Len := 1;
       end
       else
@@ -5025,16 +5041,16 @@ begin
 
   if AStr^ < #128 then
   begin
-    Result := IsSpacePerlA(Ord(AStr^));
+    Result := IsSpacePerlA(UChar(AStr^));
     Len := 1;
   end
   else
   begin
-    if FIsASCII then
+    if not FIsASCII then
     begin
       if IsNoLeadChar(AStr^) then
       begin
-        Result := IsSpacePerlU(Ord(AStr^));
+        Result := IsSpacePerlU(UChar(AStr^));
         Len := 1;
       end
       else
@@ -5137,7 +5153,7 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  Result := IsHorizontalWhiteSpace(AStr);
+  Result := IsSpaceHorizontal(UChar(AStr^));
   if FNegative then
     Result := not Result;
 
@@ -5158,7 +5174,7 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result := IsHorizontalWhiteSpace
+      Result := IsSpaceHorizontal
         (ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
       if FNegative then
         Result := not Result;
@@ -5211,7 +5227,7 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  Result := IsVerticalWhiteSpace(AStr);
+  Result := IsSpaceVertical(UChar(AStr^));
   if FNegative then
     Result := not Result;
 
@@ -5232,7 +5248,7 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result := IsVerticalWhiteSpace
+      Result := IsSpaceVertical
         (ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
       if FNegative then
         Result := not Result;
@@ -5573,6 +5589,7 @@ begin
   inherited Create(ARegExp);
   FOptions := AOptions;
   FNegative := ANegative;
+  FIsASCII := GetASCIIMode(FOptions);
 end;
 
 function TREBoundaryCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -5589,7 +5606,20 @@ begin
     begin
       Dec(AStr);
 
-      PrevType := IsWord(ToUChar(AStr), GetASCIIMode(FOptions));
+      if AStr^ < #128 then
+        PrevType := IsWordA(UChar(AStr^))
+      else
+      begin
+        if not FIsASCII then
+        begin
+          if IsNoLeadChar(AStr^) then
+            PrevType := IsWordU(UChar(AStr^))
+          else
+            PrevType := IsWordU(ToUChar(AStr))
+        end
+        else
+          PrevType := False;
+      end;
 
       Inc(AStr);
     end;
@@ -5597,7 +5627,22 @@ begin
     if AStr = FRegExp.FMatchEndP then
       CurType := False
     else
-      CurType := IsWord(ToUChar(AStr), GetASCIIMode(FOptions));
+    begin
+      if AStr^ < #128 then
+        CurType := IsWordA(UChar(AStr^))
+      else
+      begin
+        if not FIsASCII then
+        begin
+          if IsNoLeadChar(AStr^) then
+            CurType := IsWordU(UChar(AStr^))
+          else
+            CurType := IsWordU(ToUChar(AStr))
+        end
+        else
+          CurType := False;
+      end;
+    end;
 
     Result := PrevType <> CurType;
   end
@@ -5607,7 +5652,20 @@ begin
     begin
       Dec(AStr);
 
-      PrevType := not IsWord(ToUChar(AStr), GetASCIIMode(FOptions));
+      if AStr^ < #128 then
+        PrevType := not IsWordA(UChar(AStr^))
+      else
+      begin
+        if not FIsASCII then
+        begin
+          if IsNoLeadChar(AStr^) then
+            PrevType := not IsWordU(UChar(AStr^))
+          else
+            PrevType := not IsWordU(ToUChar(AStr));
+        end
+        else
+          PrevType := True;
+      end;
 
       Inc(AStr);
     end
@@ -5615,7 +5673,22 @@ begin
       PrevType := True;
 
     if AStr <> FRegExp.FMatchEndP then
-      CurType := not IsWord(ToUChar(AStr), GetASCIIMode(FOptions))
+    begin
+      if AStr^ < #128 then
+        CurType := not IsWordA(UChar(AStr^))
+      else
+      begin
+        if not FIsASCII then
+        begin
+          if IsNoLeadChar(AStr^) then
+            CurType := not IsWordU(UChar(AStr^))
+          else
+            CurType := not IsWordU(ToUChar(AStr))
+        end
+        else
+          CurType := True;
+      end;
+    end
     else
       CurType := True;
 
@@ -6104,6 +6177,7 @@ begin
   FOptions := AOptions;
   FCompareOptions := REOptionsToRECompareOptions(FOptions);
   FNegative := ANegative;
+  FIsASCII := GetASCIIMode(FOptions)
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -6171,8 +6245,12 @@ begin
 
   Ch := GetREChar(AStr, L, FCompareOptions, LFold);
 
-  Result := IsPosixClass(Ch, FPosixClass,
-    roASCIICharClass in FOptions, roIgnoreCase in FOptions);
+  if FIsASCII then
+    Result := (Ch < 128) and
+      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions)
+  else
+    Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
+
   if FNegative then
     Result := not Result;
 
@@ -6200,10 +6278,15 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      Result :=
-        IsPosixClass(
+      if FIsASCII then
+        Result := IsPosixClassA(
           ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-          FPosixClass, roASCIICharClass in FOptions, roIgnoreCase in FOptions);
+          FPosixClass, roIgnoreCase in FOptions)
+      else
+        Result := IsPosixClassU(
+          ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
+          FPosixClass, roIgnoreCase in FOptions);
+
       if FNegative then
         Result := not Result;
     end
@@ -7204,7 +7287,7 @@ begin
 
   L := 0;
 
-  if not IsAnkDigit(FP) then
+  if not ((FP^ < #128) and IsDigitA(UChar(FP^))) then
     FMin := 0
   else
   begin
@@ -7564,7 +7647,7 @@ begin
     else
       FToken := tkGoSub;
 
-    if IsAnkDigit(FP) then
+    if (FP^ < #128) and IsDigitA(UChar(FP^)) then
     begin
       ATag := GetDigit(L);
 
@@ -7594,7 +7677,7 @@ begin
           CharNext(FP);
           Exit;
         end;
-        if IsWord(ToUChar(FP), False) then
+        if IsWordU(ToUChar(FP)) then
           CharNext(FP)
         else
           Error(sInvalidCharInGroupName);
@@ -7625,7 +7708,7 @@ begin
     end
     else
     begin
-      if not IsWord(ToUChar(FP), False) then
+      if not IsWordU(ToUChar(FP)) then
         Error(sInvalidCharInGroupName);
 
       CharNext(FP);
@@ -7648,7 +7731,7 @@ begin
       '-', '^':
         begin
           CharNext(FP);
-          if not IsAnkDigit(FP) then
+          if not ((FP^ < #128) and IsDigitA(UChar(FP^))) then
           begin
             CharPrev(FP);
             LexOption;
@@ -7737,7 +7820,7 @@ begin
       '+':
         begin
           CharNext(FP);
-          if IsAnkDigit(FP) then
+          if (FP < #128) and IsDigitA(UChar(FP^)) then
           begin
             FMin := GetDigit(L);
             CharNext(FP, L);
@@ -7764,7 +7847,7 @@ begin
       '(':
         begin
           CharNext(FP);
-          if IsAnkDigit(FP) then
+          if (FP < #128) and IsDigitA(UChar(FP^)) then
           begin
             FMin := GetDigit(L);
             CharNext(FP, L);
@@ -7807,7 +7890,7 @@ begin
               FToken := tkInSubRef;
               Exit;
             end
-            else if IsAnkDigit(FP) then
+            else if (FP^ < #128) and IsDigitA(UChar(FP^)) then
             begin
               FMin := GetDigit(L);
               CharNext(FP, L);
@@ -8191,7 +8274,7 @@ begin
 //      CharNext(FP);
 //      StartP := FP;
 //    end
-    else if IsAnkWord(FP) or (FP^ = '&') then
+    else if ((FP < #128) and IsWordA(UChar(FP^))) or (FP^ = '&') then
       CharNext(FP)
     else
       Error(sInvalidProperty);
@@ -8241,7 +8324,7 @@ begin
     else
       FToken := tkReference;
 
-    if IsAnkDigit(FP) then
+    if (FP^ < #128) and IsDigitA(UChar(FP^)) then
     begin
       FMin := GetDigit(L);
 
@@ -8271,7 +8354,7 @@ begin
               Exit;
             end;
           end;
-          if IsWord(ToUChar(FP), False) then
+          if IsWordU(ToUChar(FP)) then
             CharNext(FP)
           else
             Error(sInvalidCharInGroupName);
@@ -8289,7 +8372,7 @@ begin
             CharNext(FP);
             Exit;
           end;
-          if IsWord(ToUChar(FP), False) then
+          if IsWordU(ToUChar(FP)) then
             CharNext(FP)
           else
             Error(sInvalidCharInGroupName);
@@ -9747,9 +9830,11 @@ begin
           //文字列が長い方がマッチ位置の候補を絞り込める
           if (BranchBuf[GetItem(I).BranchLevel].Code.Length < GetItem(I).Code.Length) then
             BranchBuf[GetItem(I).BranchLevel] := GetItem(I)
-          else if IsAnkWord((
-              BranchBuf[GetItem(I).BranchLevel].Code as TRELiteralCode).FSubP) and
-              (not IsAnkWord((GetItem(I).Code as TRELiteralCode).FSubP)) then
+          else if (((BranchBuf[GetItem(I).BranchLevel].Code as TRELiteralCode).FSubP^ < #128) and
+            IsWordA(UChar(
+              (BranchBuf[GetItem(I).BranchLevel].Code as TRELiteralCode).FSubP^))) and
+              (not ((GetItem(I).Code as TRELiteralCode).FSubP^ < #128) and
+              IsWordA(UChar((GetItem(I).Code as TRELiteralCode).FSubP^))) then
             //アルファベット以外の文字の方がマッチ位置の候補を絞り込める
             BranchBuf[GetItem(I).BranchLevel] := GetItem(I);
         end
@@ -15843,7 +15928,7 @@ begin
         Result := Result + '\e';
     else
       begin
-        if IsCntrl(Ord(Str[I]), False) then
+        if IsCntrlU(ToUChar(Str, I)) then
         begin
           Result := Result + Format('\x{%.2x}', [Ord(Str[I])])
         end
