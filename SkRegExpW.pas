@@ -39,7 +39,7 @@ interface
   {$DEFINE UseJapaneseOption}
 {$ENDIF}
 
-{$DEFINE CHECK_MATCH_EXPLOSION}
+{.$DEFINE CHECK_MATCH_EXPLOSION}
 
 {$DEFINE USE_UNICODE_PROPERTY}
 
@@ -422,6 +422,8 @@ type
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
     function CompareCode(Dest: TRECode): Integer; override;
+    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
+      overload; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
@@ -4848,34 +4850,23 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if not FNegative then
+  if AStr^ < #128 then
   begin
-    if AStr^ < #128 then
-    begin
-      Result := IsWordA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := IsWordU(ToUChar(AStr, Len));
-    end;
+    Result := IsWordA(UChar(AStr^));
+    if Result then
+      Len := 1;
   end
   else
   begin
-    if AStr^ < #128 then
-    begin
-      Result := not IsWordA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := not IsWordU(ToUChar(AStr, Len));
-    end;
+    if not FIsASCII then
+      Result := IsWordU(ToUChar(AStr, Len));
   end;
+
+  if FNegative then
+    Result := not Result;
+
+  if not Result then
+    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -4951,6 +4942,77 @@ begin
   FIsASCII := GetASCIIMode(FOptions)
 end;
 
+function TREDigitCharCode.ExecRepeat(var AStr: PWideChar;
+  IsStar: Boolean): Boolean;
+var
+  StartP: PWideChar;
+  Len: Integer;
+  Ch: UChar;
+begin
+  Result := IsStar;
+  StartP := AStr;
+
+  if not FNegative then
+  begin
+    if FIsASCII then
+    begin
+      while (AStr < FRegExp.FMatchEndP) do
+      begin
+        if (AStr^ < #128) and IsDigitA(UChar(AStr^)) then
+          Inc(AStr)
+        else
+          Break;
+      end
+    end
+    else
+    begin
+      Ch := ToUChar(AStr, Len);
+
+      while (AStr < FRegExp.FMatchEndP) do
+      begin
+        if IsDigitU(Ch) then
+        begin
+          Inc(AStr, Len);
+          Ch := ToUChar(AStr, Len);
+        end
+        else
+          Break;
+      end;
+    end;
+  end
+  else
+  begin
+    if FIsASCII then
+    begin
+      while (AStr < FRegExp.FMatchEndP) do
+      begin
+        if (AStr^ < #128) and not IsDigitA(UChar(AStr^)) then
+          Inc(AStr)
+        else
+          Break;
+      end
+    end
+    else
+    begin
+      Ch := ToUChar(AStr, Len);
+
+      while (AStr < FRegExp.FMatchEndP) do
+      begin
+        if not IsDigitU(Ch) then
+        begin
+          Inc(AStr, Len);
+          Ch := ToUChar(AStr, Len);
+        end
+        else
+          Break;
+      end;
+    end;
+  end;
+
+  if not Result then
+    Result := AStr - StartP > 0;
+end;
+
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Result := False;
@@ -4959,34 +5021,23 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if not FNegative then
+  if AStr^ < #128 then
   begin
-    if AStr^ < #128 then
-    begin
-      Result := IsDigitA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := IsDigitU(ToUChar(AStr, Len));
-    end;
+    Result := IsDigitA(UChar(AStr^));
+    if Result then
+      Len := 1;
   end
   else
   begin
-    if AStr^ < #128 then
-    begin
-      Result := not IsDigitA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := not IsDigitU(ToUChar(AStr, Len));
-    end;
+    if not FIsASCII then
+      Result := IsDigitU(ToUChar(AStr, Len));
   end;
+
+  if FNegative then
+    Result := not Result;
+
+  if not Result then
+    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -5059,34 +5110,23 @@ begin
   if AStr = FRegExp.FMatchEndP then
     Exit;
 
-  if not FNegative then
+  if AStr^ < #128 then
   begin
-    if AStr^ < #128 then
-    begin
-      Result := IsSpacePerlA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := IsSpacePerlU(ToUChar(AStr, Len));
-    end;
+    Result := IsSpacePerlA(UChar(AStr^));
+    if Result then
+      Len := 1;
   end
   else
   begin
-    if AStr^ < #128 then
-    begin
-      Result := not IsSpacePerlA(UChar(AStr^));
-      if Result then
-        Len := 1;
-    end
-    else
-    begin
-      if not FIsASCII then
-        Result := not IsSpacePerlU(ToUChar(AStr, Len));
-    end;
+    if not FIsASCII then
+      Result := IsSpacePerlU(ToUChar(AStr, Len));
   end;
+
+  if FNegative then
+    Result := not Result;
+
+  if not Result then
+    Len := 0;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -12958,20 +12998,20 @@ begin
           end
           else
           begin
-//            while (FRegExp.IsLineBreak(AStr) = 0) and
-//                (AStr <= FRegExp.FMatchEndP) do
-//              Inc(AStr);
-//
-//            L := FRegExp.IsLineBreak(AStr);
-//            if L > 0 then
-//            begin
-//              repeat
-//                Inc(AStr, L);
-//                L := FRegExp.IsLineBreak(AStr);
-//              until L = 0;
-//            end
-//            else
-//              Break;
+            while (FRegExp.IsLineBreak(AStr) = 0) and
+                (AStr <= FRegExp.FMatchEndP) do
+              Inc(AStr);
+
+            L := FRegExp.IsLineBreak(AStr);
+            if L > 0 then
+            begin
+              repeat
+                Inc(AStr, L);
+                L := FRegExp.IsLineBreak(AStr);
+              until L = 0;
+            end
+            else
+              Break;
           end;
         end;
       end;
@@ -16048,20 +16088,24 @@ procedure TSkRegExp.SetInputString(const Value: REString);
 var
   L: Integer;
 begin
-  FInputString := Value;
-  FModified := True;
-  L := System.Length(FInputString);
-{$IFDEF CHECK_MATCH_EXPLOSION}
-  ClearMatchExplosionState;
-  SetLength(FMatchExplosionState, L + 1);
-{$ENDIF}
-  FTextTopP := PWideChar(FInputString);
-  FTextEndP := FTextTopP + L;
-  FSuccess := False;
-  FMatchTopP := FTextTopP;
-  FMatchEndP := FTextEndP;
-  FGlobalStartP := nil;
-  FGlobalEndP := nil;
+  if FInputString <> Value then
+  begin
+    FInputString := Value;
+    FModified := True;
+    L := System.Length(FInputString);
+  {$IFDEF CHECK_MATCH_EXPLOSION}
+    ClearMatchExplosionState;
+    SetLength(FMatchExplosionState, L + 1);
+  {$ENDIF}
+    FTextTopP := PWideChar(FInputString);
+    FTextEndP := FTextTopP + L;
+    FSuccess := False;
+    FMatchTopP := FTextTopP;
+    FMatchEndP := FTextEndP;
+    FMatchStartP := FTextTopP;
+    FGlobalStartP := nil;
+    FGlobalEndP := nil;
+  end;
 end;
 
 procedure TSkRegExp.SetOptions(const Index: Integer; const Value: Boolean);
