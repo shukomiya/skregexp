@@ -39,7 +39,7 @@ interface
   {$DEFINE UseJapaneseOption}
 {$ENDIF}
 
-{.$DEFINE CHECK_MATCH_EXPLOSION}
+{$DEFINE CHECK_MATCH_EXPLOSION}
 
 {$DEFINE USE_UNICODE_PROPERTY}
 
@@ -422,8 +422,6 @@ type
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
     function CompareCode(Dest: TRECode): Integer; override;
-    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
-      overload; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
@@ -4940,77 +4938,6 @@ begin
   FOptions := AOptions;
   FNegative := ANegative;
   FIsASCII := GetASCIIMode(FOptions)
-end;
-
-function TREDigitCharCode.ExecRepeat(var AStr: PWideChar;
-  IsStar: Boolean): Boolean;
-var
-  StartP: PWideChar;
-  Len: Integer;
-  Ch: UChar;
-begin
-  Result := IsStar;
-  StartP := AStr;
-
-  if not FNegative then
-  begin
-    if FIsASCII then
-    begin
-      while (AStr < FRegExp.FMatchEndP) do
-      begin
-        if (AStr^ < #128) and IsDigitA(UChar(AStr^)) then
-          Inc(AStr)
-        else
-          Break;
-      end
-    end
-    else
-    begin
-      Ch := ToUChar(AStr, Len);
-
-      while (AStr < FRegExp.FMatchEndP) do
-      begin
-        if IsDigitU(Ch) then
-        begin
-          Inc(AStr, Len);
-          Ch := ToUChar(AStr, Len);
-        end
-        else
-          Break;
-      end;
-    end;
-  end
-  else
-  begin
-    if FIsASCII then
-    begin
-      while (AStr < FRegExp.FMatchEndP) do
-      begin
-        if (AStr^ < #128) and not IsDigitA(UChar(AStr^)) then
-          Inc(AStr)
-        else
-          Break;
-      end
-    end
-    else
-    begin
-      Ch := ToUChar(AStr, Len);
-
-      while (AStr < FRegExp.FMatchEndP) do
-      begin
-        if not IsDigitU(Ch) then
-        begin
-          Inc(AStr, Len);
-          Ch := ToUChar(AStr, Len);
-        end
-        else
-          Break;
-      end;
-    end;
-  end;
-
-  if not Result then
-    Result := AStr - StartP > 0;
 end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -13218,34 +13145,34 @@ begin
           end;
         end;
       end;
-    lcmHasLead:
-      begin
-        while AStr <= FRegExp.FMatchEndP do
-        begin
-          if FLeadCode.IsEqual(AStr) then
-          begin
-            if MatchEntry(AStr) then
-            begin
-              Result := True;
-              Exit;
-            end;
-          end;
-
-          if FHasSkip and (FSkipP <> nil) then
-          begin
-            AStr := FSkipP;
-            if AStr = FRegExp.FMatchEndP then
-              Exit;
-            FSkipP := nil;
-          end
-          else
-          begin
-            if IsLeadChar(AStr^) then
-              Inc(AStr);
-            Inc(AStr);
-          end;
-        end;
-      end
+//    lcmHasLead:
+//      begin
+//        while AStr <= FRegExp.FMatchEndP do
+//        begin
+//          if FLeadCode.IsEqual(AStr) then
+//          begin
+//            if MatchEntry(AStr) then
+//            begin
+//              Result := True;
+//              Exit;
+//            end;
+//          end;
+//
+//          if FHasSkip and (FSkipP <> nil) then
+//          begin
+//            AStr := FSkipP;
+//            if AStr = FRegExp.FMatchEndP then
+//              Exit;
+//            FSkipP := nil;
+//          end
+//          else
+//          begin
+//            if IsLeadChar(AStr^) then
+//              Inc(AStr);
+//            Inc(AStr);
+//          end;
+//        end;
+//      end
   else
     begin
       while AStr <= FRegExp.FMatchEndP do
