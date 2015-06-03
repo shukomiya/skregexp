@@ -15519,9 +15519,6 @@ begin
   if (AOffset < 1) then
     Exit;
 
-  if FMatchTopP = nil then
-    Exit;
-
   if not FCompiled then
   begin
     Compile;
