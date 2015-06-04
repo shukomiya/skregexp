@@ -1419,6 +1419,8 @@ type
 
   TREIsLeadMatchMethod = function(AStr: PWideChar): Boolean of object;
 
+  TREMatchMode = (mmNormal, mmRepeat, mmSpecial, mmFixedRepeat, mmAhead);
+
   { 従来型NFAバックトラック照合エンジンクラス
     NFAと言っても状態機械ではなく、NFA状態をバイトコードとみなして処理している。 }
   TREMatchEngine = class
@@ -1445,13 +1447,8 @@ type
     function IsLeadCode(AStr: PWideChar): Boolean; inline;
     function IsLeadMap(AStr: PWideChar): Boolean; inline;
     function IsLeadAllMatch(AStr: PWideChar): Boolean; inline;
-    function MatchAhead(var NFACode: TRENFAState; var AStr: PWideChar): Boolean; overload;
-    function MatchCore(var NFACode: TRENFAState; Stack: TREBackTrackStack;
-      var AStr: PWideChar): Boolean; overload;
-    function MatchCore(var NFACode, EndCode: TRENFAState; Stack: TREBackTrackStack;
-      var AStr: PWideChar): Boolean; overload;
-    function MatchPrim(NFACode: TRENFAState; Stack: TREBackTrackStack;
-      var AStr: PWideChar): TRENFAState;
+    function MatchPrim(var NFACode: TRENFAState; const CEndCode: TRENFAState;
+      Stack: TREBackTrackStack; var AStr: PWideChar; AMode: TREMatchMode): Boolean; overload;
 
     procedure OptimizeLoop;
 
@@ -13238,79 +13235,6 @@ begin
   end;
 end;
 
-function TREMatchEngine.MatchAhead(var NFACode: TRENFAState;
-  var AStr: PWideChar): Boolean;
-var
-  Index: Integer;
-  SaveP: PWideChar;
-  Stack: TREBackTrackStack;
-begin
-  Stack := TREBackTrackStack.Create(FRegExp, False);
-  try
-    Result := False;
-    SaveP := AStr;
-    Index := Stack.Index;
-
-    while NFACode <> nil do
-    begin
-      NFACode := MatchPrim(NFACode, Stack, AStr);
-
-      if (NFACode = nil) then
-      begin
-        if FGroups[0].EndP <> nil then
-        begin
-          Result := True;
-          Exit;
-        end
-        else if Stack.Index > Index then
-          Stack.Pop(NFACode, AStr);
-      end;
-
-      if (NFACode <> nil) then
-      begin
-        if NFACode.Kind in [nkEnd, nkMatchEnd] then
-        begin
-          Result := True;
-          Exit;
-        end
-      end;
-    end;
-
-    if not Result then
-      AStr := SaveP;
-  finally
-    Stack.Free;
-  end;
-end;
-
-function TREMatchEngine.MatchCore(var NFACode: TRENFAState;
-  Stack: TREBackTrackStack; var AStr: PWideChar): Boolean;
-begin
-  Result := False;
-
-  while NFACode <> nil do
-  begin
-    NFACode := MatchPrim(NFACode, Stack, AStr);
-
-    if (NFACode = nil) then
-    begin
-      if (FGroups[0].EndP <> nil) then
-      begin
-        Result := True;
-        Exit;
-      end
-      else
-        Stack.Pop(NFACode, AStr);
-    end;
-
-    if (NFACode <> nil) and (NFACode.Kind = nkMatchEnd) then
-    begin
-      Result := True;
-      Exit;
-    end;
-  end;
-end;
-
 function TREMatchEngine.MatchEntry(AStr: PWideChar): Boolean;
 var
   NFACode: TRENFAState;
@@ -13326,65 +13250,19 @@ begin
   NFACode := FStateList[FRegExp.FEntryState];
   FGroups[0].StartP := AStr;
   FRegExp.FStartMatch := AStr - FRegExp.FTextTopP + 1;
-  Result := MatchCore(NFACode, FBackTrackStack, AStr);
+  Result := MatchPrim(NFACode, nil, FBackTrackStack, AStr, mmNormal);
 
   if not Result then
     FRegExp.FLastRegErrorIndex := FRegExp.FLastRegMarkIndex;
 end;
 
-function TREMatchEngine.MatchPrim(NFACode: TRENFAState;
-  Stack: TREBackTrackStack; var AStr: PWideChar): TRENFAState;
+function TREMatchEngine.MatchPrim(var NFACode: TRENFAState; const CEndCode: TRENFAState;
+      Stack: TREBackTrackStack; var AStr: PWideChar; AMode: TREMatchMode): Boolean;
 
-  function MatchLoop(EntryCode, EndCode: TRENFAState;
+  function MatchLoop(EntryCode: TRENFAState; const EndCode: TRENFAState;
     Stack: TREBackTrackStack; var AStr: PWideChar): Boolean;
-  var
-    NFACode: TRENFAState;
-    Index: Integer;
-    SaveP: PWideChar;
   begin
-    Result := False;
-    Index := Stack.Index;
-    SaveP := AStr;
-    NFACode := EntryCode;
-    while NFACode <> nil do
-    begin
-      while NFACode <> nil do
-      begin
-        NFACode := MatchPrim(NFACode, Stack, AStr);
-
-        if (NFACode <> nil) and
-          ((NFACode = EndCode) or (NFACode.Kind = nkMatchEnd)) then
-        begin
-          Result := True;
-          Break;
-        end
-      end;
-
-      if (NFACode = nil) then
-      begin
-        if FGroups[0].EndP <> nil then
-          Exit;
-
-        if Stack.Index > Index then
-        begin
-          Stack.Pop(NFACode, AStr);
-
-          if (NFACode <> nil) and
-            ((NFACode = EndCode) or (NFACode.Kind = nkMatchEnd)) then
-          begin
-            Result := True;
-            Break;
-          end
-        end
-        else
-          Break;
-      end
-      else
-        Break;
-    end;
-
-    if (NFACode = nil) and Result then
-      AStr := SaveP;
+    Result := MatchPrim(EntryCode, EndCode, Stack, AStr, mmRepeat);
   end;
 
   procedure BranchSetup(NFACode: TRENFAState; AStr: PWideChar;
@@ -13455,93 +13333,34 @@ function TREMatchEngine.MatchPrim(NFACode: TRENFAState;
   function MatchAhead(var NFACode: TRENFAState;
     var AStr: PWideChar): Boolean;
   var
-    Index: Integer;
-    SaveP: PWideChar;
     Stack: TREBackTrackStack;
   begin
     Stack := TREBackTrackStack.Create(FRegExp, False);
     try
-      Result := False;
-      SaveP := AStr;
-      Index := Stack.Index;
-
-      while NFACode <> nil do
-      begin
-        NFACode := MatchPrim(NFACode, Stack, AStr);
-
-        if (NFACode = nil) then
-        begin
-          if FGroups[0].EndP <> nil then
-          begin
-            Result := True;
-            Exit;
-          end
-          else if Stack.Index > Index then
-            Stack.Pop(NFACode, AStr);
-        end;
-
-        if (NFACode <> nil) then
-        begin
-          if NFACode.Kind in [nkEnd, nkMatchEnd] then
-          begin
-            Result := True;
-            Exit;
-          end
-        end;
-      end;
-
-      if not Result then
-        AStr := SaveP;
+      Result := MatchPrim(NFACode, nil, Stack,AStr, mmAhead);
     finally
       Stack.Free;
     end;
   end;
 
-  function MatchSpecial(var NFACode, EndCode: TRENFAState;
+  function MatchSpecial(var EntryCode: TRENFAState;
+    const EndCode: TRENFAState;
     var AStr: PWideChar): Boolean;
   var
-    Index: Integer;
-    SaveP: PWideChar;
     Stack: TREBackTrackStack;
   begin
     Stack := TREBackTrackStack.Create(FRegExp, False);
     try
-      Result := False;
-      SaveP := AStr;
-      Index := Stack.Index;
-
-      while NFACode <> nil do
-      begin
-        NFACode := MatchPrim(NFACode, Stack, AStr);
-
-        if (NFACode = nil) then
-        begin
-          if FGroups[0].EndP <> nil then
-          begin
-            Result := True;
-            Exit;
-          end
-          else if Stack.Index > Index then
-            Stack.Pop(NFACode, AStr);
-        end;
-
-        if (NFACode <> nil) and
-            ((NFACode = EndCode) or (NFACode.Kind = nkMatchEnd)) then
-        begin
-          Result := True;
-          Exit;
-        end;
-      end;
-
-      if not Result then
-        AStr := SaveP;
+      Result := MatchPrim(EntryCode, EndCode, Stack, AStr, mmSpecial);
     finally
       Stack.Free;
     end;
   end;
 
-
+label
+  ExitMatchPrim;
 var
+  LStackIndex: Integer;
   I, Len, LMin, LMax, Index, BaseIndex, LLoopIndex: Integer;
   EntryCode, NextCode, EndCode, SubCode, LoopCode, BranchCode: TRENFAState;
   LMatchKind: TRELoopKind;
@@ -13551,8 +13370,46 @@ var
   CurrentNFA: TRENFAState;
 {$ENDIF}
 begin
-  Result := nil;
-  BaseIndex := Stack.Index;
+  Result := False;
+  LStackIndex := Stack.Index;
+
+  while NFACode <> nil do
+  begin
+    case AMode of
+      mmSpecial:
+        if (NFACode = CEndCode) or (NFACode.Kind = nkMatchEnd) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      mmFixedRepeat:
+        if (NFACode = CEndCode) or
+            (NFACode.Kind in [nkEnd, nkMatchEnd, nkLoopExit]) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      mmAhead:
+        if NFACode.Kind in [nkEnd, nkMatchEnd] then
+        begin
+          Result := True;
+          Exit;
+        end;
+      mmRepeat:
+        if ((NFACode = CEndCode) or (NFACode.Kind = nkMatchEnd)) then
+        begin
+          Result := True;
+          Exit;
+        end;
+    else
+      if NFACode.Kind = nkMatchEnd then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+
+//--- MatchPrim begin---------------------------------------------------------
 
 {$IFDEF SKREGEXP_DEBUG}
   IsLoopMatched := False;
@@ -13591,10 +13448,10 @@ begin
           if NFACode.Code.IsEqual(AStr, Len) then
           begin
             Inc(AStr, Len);
-            Result := FStateList[NFACode.TransitTo];
+            NFACode := FStateList[NFACode.TransitTo];
           end
           else
-            Result := nil;
+            NFACode := nil;
         end;
       nkStar, nkPlus:
         begin
@@ -13627,7 +13484,7 @@ begin
                 CharNext(SubP, Len);
               end;
 
-              Result := NextCode;
+              NFACode := NextCode;
             end
 {$IFDEF USE_UNICODE_PROPERTY}
             else if LMatchKind = lkCombiningSequence then
@@ -13647,7 +13504,7 @@ begin
                 CharNextForCombiningSequence(SubP, Len);
               end;
 
-              Result := NextCode;
+              NFACode := NextCode;
             end
 {$ENDIF USE_UNICODE_PROPERTY}
             else
@@ -13668,19 +13525,19 @@ begin
                   CharNext(SubP, Len);
                 end;
 
-                Result := NextCode;
+                NFACode := NextCode;
               end
               else
               begin
                 Stack.Remove(BaseIndex);
-                Result := NextCode;
+                NFACode := NextCode;
                 if not FRegExp.FHasReference and (AStr - SaveP > 0) then
                   FSkipP := AStr;
               end;
             end;
           end
           else
-            Result := nil;
+            NFACode := nil;
         end;
       nkBound:
         begin
@@ -13717,16 +13574,16 @@ begin
                 CharNext(SubP, Len);
               end;
 
-              Result := NextCode;
+              NFACode := NextCode;
             end //
             else
             begin
               Stack.Remove(BaseIndex);
-              Result := NextCode;
+              NFACode := NextCode;
             end;
           end
           else
-            Result := nil;
+            NFACode := nil;
           end;
       nkLoop:
         begin
@@ -13762,7 +13619,7 @@ begin
               while I < LMin do
               begin
                 SubP := AStr;
-                if not MatchCore(NFACode, EndCode, Stack, AStr) then
+                if not MatchPrim(NFACode, EndCode, Stack, AStr, mmFixedRepeat) then
                 begin
                   if Stack.Index > BaseIndex then
                   begin
@@ -13795,7 +13652,7 @@ begin
                     begin
                       Inc(I);
                       if I = LMin then
-                        Result := NextCode;
+                        NFACode := NextCode;
                       Exit;
                     end;
 {$IFDEF SKREGEXP_DEBUG}
@@ -13819,7 +13676,7 @@ begin
 {$ENDIF}
                 end;
               end;
-              Result := NextCode;
+              NFACode := NextCode;
               Exit;
             end
             else
@@ -13845,7 +13702,7 @@ begin
 
               if AStr = SubP then
               begin
-                Result := NextCode;
+                NFACode := NextCode;
                 Exit;
               end;
 
@@ -13901,7 +13758,7 @@ begin
             end;
 
             if IsMatched then
-              Result := NextCode
+              NFACode := NextCode
             else if not IsLoopMatched then
               AStr := SaveP;
           end
@@ -13910,7 +13767,7 @@ begin
             if not PreMatchLoopNext(LLoopIndex, NextCode, AStr) then
             begin
               if LMin = 0 then
-                Result := NextCode
+                NFACode := NextCode
               else if NextCode.BranchIndex = 0 then
                 FSkipP := FRegExp.FMatchEndP;
               Exit;
@@ -13932,7 +13789,7 @@ begin
               FLoopState[LLoopIndex].PrevP := AStr;
             end;
 
-            Result := NextCode;
+            NFACode := NextCode;
           end
           else if LMatchKind = lkReluctant then
           begin
@@ -13942,9 +13799,9 @@ begin
             begin
               SubP := AStr;
               Stack.Push(nil, AStr, True);
-              Result := NextCode;
+              NFACode := NextCode;
 
-              if MatchAhead(Result, AStr) then
+              if MatchAhead(NFACode, AStr) then
               begin
                 BranchSetup(EntryCode, AStr, True);
                 Exit;
@@ -13976,7 +13833,7 @@ begin
             end;
 
             if IsLoopMatched then
-              Result := NextCode
+              NFACode:= NextCode
             else
               AStr := SaveP;
           end
@@ -14008,7 +13865,7 @@ begin
             end;
             Stack.Remove(BaseIndex);
 
-            Result := NextCode;
+            NFACode := NextCode;
             if not FRegExp.FHasReference and
                 (AStr - SaveP > 0) and (LMin > 0) then
               FSkipP := AStr;
@@ -14019,7 +13876,7 @@ begin
           if (FRegExp.FSubStack.Count > 0) and
             (FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].EndCode = NFACode) then
           begin
-            Result := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].NextCode;
+            NFACode := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].NextCode;
 //@            FGroups.Pop;
             FRegExp.FGroupStack.Pop(FGroups);
             FRegExp.FSubStack.Pop;
@@ -14027,7 +13884,7 @@ begin
           else
           begin
             FGroups[0].EndP := AStr;
-            Result := nil;
+            NFACode := nil;
           end;
         end;
       nkLoopExit:
@@ -14043,7 +13900,7 @@ begin
           if FLoopState[LLoopIndex].Step > System.Length(FRegExp.FInputString) * 2 then
 {$ENDIF CHECK_MATCH_EXPLOSTION}
           begin
-            Result := NextCode;
+            NFACode := NextCode;
             Exit;
           end;
 
@@ -14053,28 +13910,28 @@ begin
                 (AStr = (FLoopState[LLoopIndex].PrevP))) or
                 (FLoopState[LLoopIndex].Step >= NFACode.Max) then
             begin
-              Result := NextCode;
+              NFACode := NextCode;
             end
             else
             begin
               BranchSetup(NextCode, AStr, True);
-              Result := NFACode.Next;
+              NFACode := NFACode.Next;
               FLoopState[LLoopIndex].PrevP := AStr;
             end;
           end
           else if NFACode.MatchKind = lkReluctant then
           begin
             BranchSetup(NFACode.Next, AStr, True);
-            Result := NextCode;
+            NFACode := NextCode;
           end
           else
-            Result := NextCode;
+            NFACode := NextCode;
         end;
       nkLoopEnd:
         begin
           LLoopIndex := NFACode.LoopIndex;
           FLoopState[LLoopIndex].Up;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
 {$IFDEF SKREGEXP_DEBUG}
           if FRegExp.FShowMatchProcess then
           begin
@@ -14084,11 +13941,11 @@ begin
 {$ENDIF}
         end;
       nkEmpty, nkIfThen:
-        Result := FStateList[NFACode.TransitTo];
+        NFACode := FStateList[NFACode.TransitTo];
       nkGroupBegin:
         begin
           FGroups[NFACode.GroupIndex].StartP := AStr;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
 {$IFDEF SKREGEXP_DEBUG}
           if FRegExp.FShowMatchProcess and FRegExp.ShowCaptureHistory then
           begin
@@ -14114,7 +13971,7 @@ begin
               FRegExp.FMatchProcess.Add(Format(#0009#0009'NestLevel: %d',
                 [FRegExp.FSubStack.Index + 1]));
 {$ENDIF SKREGEXP_DEBUG}
-            Result := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].NextCode;
+            NFACode := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].NextCode;
 //@            FGroups.Pop;
             FRegExp.FGroupStack.Pop(FGroups);
             FLoopState.Pop;
@@ -14122,7 +13979,7 @@ begin
           end
           else
           begin
-            Result := FStateList[NFACode.TransitTo];
+            NFACode := FStateList[NFACode.TransitTo];
           end;
         end;
       nkSuspend:
@@ -14132,19 +13989,19 @@ begin
           SubP := AStr;
           if MatchSpecial(NFACode, EndCode, AStr) then
           begin
-            Result := FStateList[EndCode.TransitTo];
+            NFACode := FStateList[EndCode.TransitTo];
           end
           else
           begin
             AStr := SubP;
-            Result := nil;
+            NFACode := nil;
           end;
         end;
       nkKeepPattern:
         begin
           Stack.Clear;
           FGroups[0].StartP := AStr;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
         end;
       nkGoSub:
         begin
@@ -14163,7 +14020,7 @@ begin
 //@            FGroups.Push;
             FRegExp.FGroupStack.Push(FGroups);
             FLoopState.Push;
-            Result := EntryCode;
+            NFACode := EntryCode;
           end
           else
           begin
@@ -14175,12 +14032,11 @@ begin
 //@            FGroups.Push;
             FRegExp.FGroupStack.Push(FGroups);
             FLoopState.Push;
-            Result := EntryCode;
+            NFACode := EntryCode;
           end;
         end;
       nkMatchEnd:
         begin
-          Result := NFACode;
           Exit;
         end;
       nkAheadMatch:
@@ -14190,9 +14046,9 @@ begin
 
           SubP := AStr;
           if MatchSpecial(NFACode, EndCode, SubP) then
-            Result := FStateList[NFACode.TransitTo]
+            NFACode := FStateList[NFACode.TransitTo]
           else
-            Result := nil;
+            NFACode := nil;
         end;
       nkAheadNoMatch:
         begin
@@ -14201,9 +14057,9 @@ begin
 
           SubP := AStr;
           if MatchSpecial(NFACode, EndCode, SubP) then
-            Result := nil
+            NFACode := nil
           else
-            Result := FStateList[EndCode.TransitTo];
+            NFACode := FStateList[EndCode.TransitTo];
         end;
       nkBehindMatch:
         begin
@@ -14249,18 +14105,18 @@ begin
             end;
             
             if not IsMatched then
-              Result := nil
+              NFACode := nil
             else
             begin
               if SubP = AStr then
-                Result := FStateList[NFACode.TransitTo]
+                NFACode := FStateList[NFACode.TransitTo]
               else
-                Result := nil;
+                NFACode := nil;
             end;
           end
           else
           begin
-            Result := nil;
+            NFACode := nil;
             Exit;
           end;
         end;
@@ -14271,7 +14127,7 @@ begin
           LMin := NFACode.Min;
 
           EndCode := FStateList[NFACode.ExtendTo];
-          Result := FStateList[EndCode.TransitTo];
+          NFACode := FStateList[EndCode.TransitTo];
           EntryCode := FStateList[NFACode.TransitTo];
 
           if LMin = LMax then
@@ -14309,7 +14165,7 @@ begin
             end;
 
             if IsMatched then
-              Result := nil;
+              NFACode := nil;
           end;
         end;
       nkIfMatch:
@@ -14322,24 +14178,24 @@ begin
             SubCode := FStateList[EndCode.Next.Next.TransitTo];
 
           if MatchSpecial(EntryCode, EndCode, SubP) then
-            Result := NextCode
+            NFACode := NextCode
           else
-            Result := SubCode;
+            NFACode := SubCode;
         end;
       nkDefine:
         begin
-          Result := FStateList[NFACode.ExtendTo];
+          NFACode := FStateList[NFACode.ExtendTo];
         end;
       nkFail:
         begin
-          Result := nil;
+          NFACode := nil;
         end;
       nkPrune:
         begin
           Stack.Clear;
           if NFACode.GroupIndex <> -1 then
             FRegExp.FLastRegMarkIndex := NFACode.GroupIndex;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
         end;
       nkSkip:
         begin
@@ -14354,7 +14210,7 @@ begin
           end;
 
           FSkipP := AStr;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
           FHasSkip := True;
         end;
       nkMark:
@@ -14370,7 +14226,7 @@ begin
               FRegExp.FLastRegMarkIndex := NFACode.GroupIndex;
           end;
 
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
         end;
       nkThen:
         begin
@@ -14385,7 +14241,7 @@ begin
           if NFACode.GroupIndex <> -1 then
             FRegExp.FLastRegMarkIndex := NFACode.GroupIndex;
 
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
         end;
       nkCommit:
         begin
@@ -14394,7 +14250,7 @@ begin
             FRegExp.FLastRegMarkIndex := NFACode.GroupIndex;
 
           FSkipP := FRegExp.FMatchEndP;
-          Result := FStateList[NFACode.TransitTo];
+          NFACode := FStateList[NFACode.TransitTo];
         end;
       nkAccept:
         begin
@@ -14409,30 +14265,50 @@ begin
           if FRegExp.FSubStack.Count > 0 then
           begin
             Stack.RemoveGoSub(FRegExp.FSubStack.Index);
-            Result := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].EndCode;
+            NFACode := FRegExp.FSubStack[FRegExp.FSubStack.Count - 1].EndCode;
           end
           else
           begin
             Stack.Clear;
-            Result := FStateList[NFACode.TransitTo];
+            NFACode := FStateList[NFACode.TransitTo];
           end;
         end;
     end;
 
+ExitMatchPrim:
+
 {$IFDEF SKREGEXP_DEBUG}
-  finally
-    if FRegExp.FShowMatchProcess then
-    begin
-      if (Result = nil) and (not IsLoopMatched) then
+    finally
+      if FRegExp.FShowMatchProcess then
       begin
-        if CurrentNFA.Kind <> nkEnd then
-          FRegExp.FMatchProcess.Add('...fail')
-        else
-          FRegExp.FMatchProcess.Add('Match Success!');
+        if (NFACode = nil) and (not IsLoopMatched) then
+        begin
+          if CurrentNFA.Kind <> nkEnd then
+            FRegExp.FMatchProcess.Add('...fail')
+          else
+            FRegExp.FMatchProcess.Add('Match Success!');
+        end;
       end;
     end;
-  end;
 {$ENDIF}
+
+//--- MatchPrim End----------------------------------------------------------
+
+    if NFACode = nil then
+    begin
+      if FGroups[0].EndP <> nil then
+      begin
+        if AMode <> mmRepeat then
+          Result := True;
+        Break;
+      end;
+
+      if Stack.Index > LStackIndex then
+        Stack.Pop(NFACode, AStr)
+      else
+        Break;
+    end;
+  end;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -14804,44 +14680,6 @@ begin
     else
       FLeadCharMode := lcmLeadMap;
   end;
-end;
-
-function TREMatchEngine.MatchCore(var NFACode, EndCode: TRENFAState;
-  Stack: TREBackTrackStack; var AStr: PWideChar): Boolean;
-var
-  Index: Integer;
-  SaveP: PWideChar;
-begin
-  Result := False;
-  SaveP := AStr;
-  Index := Stack.Index;
-
-  while NFACode <> nil do
-  begin
-    NFACode := MatchPrim(NFACode, Stack, AStr);
-
-    if (NFACode = nil) then
-    begin
-      if FGroups[0].EndP <> nil then
-      begin
-        Result := True;
-        Exit;
-      end
-      else if Stack.Index > Index then
-        Stack.Pop(NFACode, AStr);
-    end
-    else
-    begin
-      if (NFACode = EndCode) or (NFACode.Kind in [nkEnd, nkMatchEnd, nkLoopExit]) then
-      begin
-        Result := True;
-        Exit;
-      end;
-    end;
-  end;
-
-  if not Result then
-    AStr := SaveP;
 end;
 
 { TSkRegExp }
