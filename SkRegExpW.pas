@@ -10969,12 +10969,12 @@ begin
 
         if not FHasAccept then
         begin
-          if (FBEntryState = AEntry) and AState.IsJoinMatch and
-              not ACode.IsVariable then
-          begin
-            if not AState.IsNullMatch and not FInBranch then
-              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
-          end;
+//          if (FBEntryState = AEntry) and AState.IsJoinMatch and
+//              not ACode.IsVariable then
+//          begin
+//            if not AState.IsNullMatch and not FInBranch then
+//              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
+//          end;
 
           if (AMatchLen.Min > -1) and (ACode.CharLength.Min > -1) then
             Inc(AMatchLen.Min,  ACode.CharLength.Min)
