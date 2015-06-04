@@ -338,7 +338,6 @@ type
     // この Code の末尾が ACode の先頭と一致すればTrue。繰り返しの最適化用
     function IsOverlap(ACode: TRECode): Boolean; virtual;
     function IsVariable: Boolean; virtual;
-    function IsAny: Boolean; virtual;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; virtual;
 {$ENDIF}
@@ -390,7 +389,6 @@ type
       override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
-    function IsAny: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -525,7 +523,6 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
-    function IsAny: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -4446,11 +4443,6 @@ begin
   Result := nil;
 end;
 
-function TRECode.IsAny: Boolean;
-begin
-  Result := False;
-end;
-
 function TRECode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Result := False;
@@ -4745,11 +4737,6 @@ begin
   inherited Create(ARegExp);
   FOptions := AOptions;
   FIsMatchAll := roSingleLine in FOptions;
-end;
-
-function TREAnyCharCode.IsAny: Boolean;
-begin
-  Result := True;
 end;
 
 function TREAnyCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -5553,11 +5540,6 @@ end;
 { TRECombiningSequence }
 
 {$IFDEF USE_UNICODE_PROPERTY}
-function TRECombiningSequence.IsAny: Boolean;
-begin
-  Result := True;
-end;
-
 function TRECombiningSequence.IsEqual(AStr: PWideChar;
   var Len: Integer): Boolean;
 var
@@ -10988,7 +10970,7 @@ begin
         if not FHasAccept then
         begin
           if (FBEntryState = AEntry) and AState.IsJoinMatch and
-              not ACode.IsVariable and not ACode.IsAny then
+              not ACode.IsVariable then
           begin
             if not AState.IsNullMatch and not FInBranch then
               FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
