@@ -2892,6 +2892,8 @@ begin
   x2('(?k)[パハバ]+', 'はばぱぱは', 1, 5);
 
   n('\d{2}[A-Z]-[A-Z]{4}\d{4}[A-Z]{2}', '{90150000-000F-0000-0000-0000000FF1CE}');
+  n('[^w-]d{4}-d{2}-d{6}', ' 8051-abffdhksa fhdlsakfdjksalfdsa');
+
 end;
 
 procedure TestQuickSearch;
