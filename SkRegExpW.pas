@@ -1448,8 +1448,6 @@ type
     function MatchAhead(var NFACode: TRENFAState; var AStr: PWideChar): Boolean; overload;
     function MatchCore(var NFACode: TRENFAState; Stack: TREBackTrackStack;
       var AStr: PWideChar): Boolean; overload;
-    function MatchCore(var NFACode, EndCode: TRENFAState;
-      var AStr: PWideChar): Boolean; overload;
     function MatchCore(var NFACode, EndCode: TRENFAState; Stack: TREBackTrackStack;
       var AStr: PWideChar): Boolean; overload;
     function MatchPrim(NFACode: TRENFAState; Stack: TREBackTrackStack;
@@ -13313,49 +13311,6 @@ begin
   end;
 end;
 
-function TREMatchEngine.MatchCore(var NFACode, EndCode: TRENFAState;
-  var AStr: PWideChar): Boolean;
-var
-  Index: Integer;
-  SaveP: PWideChar;
-  Stack: TREBackTrackStack;
-begin
-  Stack := TREBackTrackStack.Create(FRegExp, False);
-  try
-    Result := False;
-    SaveP := AStr;
-    Index := Stack.Index;
-
-    while NFACode <> nil do
-    begin
-      NFACode := MatchPrim(NFACode, Stack, AStr);
-
-      if (NFACode = nil) then
-      begin
-        if FGroups[0].EndP <> nil then
-        begin
-          Result := True;
-          Exit;
-        end
-        else if Stack.Index > Index then
-          Stack.Pop(NFACode, AStr);
-      end;
-
-      if (NFACode <> nil) and
-          ((NFACode = EndCode) or (NFACode.Kind = nkMatchEnd)) then
-      begin
-        Result := True;
-        Exit;
-      end;
-    end;
-
-    if not Result then
-      AStr := SaveP;
-  finally
-    Stack.Free;
-  end;
-end;
-
 function TREMatchEngine.MatchEntry(AStr: PWideChar): Boolean;
 var
   NFACode: TRENFAState;
@@ -13496,6 +13451,95 @@ function TREMatchEngine.MatchPrim(NFACode: TRENFAState;
       end;
     end;
   end;
+
+  function MatchAhead(var NFACode: TRENFAState;
+    var AStr: PWideChar): Boolean;
+  var
+    Index: Integer;
+    SaveP: PWideChar;
+    Stack: TREBackTrackStack;
+  begin
+    Stack := TREBackTrackStack.Create(FRegExp, False);
+    try
+      Result := False;
+      SaveP := AStr;
+      Index := Stack.Index;
+
+      while NFACode <> nil do
+      begin
+        NFACode := MatchPrim(NFACode, Stack, AStr);
+
+        if (NFACode = nil) then
+        begin
+          if FGroups[0].EndP <> nil then
+          begin
+            Result := True;
+            Exit;
+          end
+          else if Stack.Index > Index then
+            Stack.Pop(NFACode, AStr);
+        end;
+
+        if (NFACode <> nil) then
+        begin
+          if NFACode.Kind in [nkEnd, nkMatchEnd] then
+          begin
+            Result := True;
+            Exit;
+          end
+        end;
+      end;
+
+      if not Result then
+        AStr := SaveP;
+    finally
+      Stack.Free;
+    end;
+  end;
+
+  function MatchSpecial(var NFACode, EndCode: TRENFAState;
+    var AStr: PWideChar): Boolean;
+  var
+    Index: Integer;
+    SaveP: PWideChar;
+    Stack: TREBackTrackStack;
+  begin
+    Stack := TREBackTrackStack.Create(FRegExp, False);
+    try
+      Result := False;
+      SaveP := AStr;
+      Index := Stack.Index;
+
+      while NFACode <> nil do
+      begin
+        NFACode := MatchPrim(NFACode, Stack, AStr);
+
+        if (NFACode = nil) then
+        begin
+          if FGroups[0].EndP <> nil then
+          begin
+            Result := True;
+            Exit;
+          end
+          else if Stack.Index > Index then
+            Stack.Pop(NFACode, AStr);
+        end;
+
+        if (NFACode <> nil) and
+            ((NFACode = EndCode) or (NFACode.Kind = nkMatchEnd)) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end;
+
+      if not Result then
+        AStr := SaveP;
+    finally
+      Stack.Free;
+    end;
+  end;
+
 
 var
   I, Len, LMin, LMax, Index, BaseIndex, LLoopIndex: Integer;
@@ -14086,7 +14130,7 @@ begin
           EndCode := FStateList[NFACode.ExtendTo];
           NFACode := FStateList[NFACode.TransitTo];
           SubP := AStr;
-          if MatchCore(NFACode, EndCode, AStr) then
+          if MatchSpecial(NFACode, EndCode, AStr) then
           begin
             Result := FStateList[EndCode.TransitTo];
           end
@@ -14145,7 +14189,7 @@ begin
           NFACode := FStateList[NFACode.TransitTo];
 
           SubP := AStr;
-          if MatchCore(NFACode, EndCode, SubP) then
+          if MatchSpecial(NFACode, EndCode, SubP) then
             Result := FStateList[NFACode.TransitTo]
           else
             Result := nil;
@@ -14156,7 +14200,7 @@ begin
           NFACode := FStateList[NFACode.TransitTo];
 
           SubP := AStr;
-          if MatchCore(NFACode, EndCode, SubP) then
+          if MatchSpecial(NFACode, EndCode, SubP) then
             Result := nil
           else
             Result := FStateList[EndCode.TransitTo];
@@ -14184,7 +14228,7 @@ begin
             SaveP := SubP;
             NFACode := EntryCode;
             
-            IsMatched := MatchCore(NFACode, EndCode, SubP);
+            IsMatched := MatchSpecial(NFACode, EndCode, SubP);
             if IsMatched and (SubP <> AStr) then
               IsMatched := False;
           
@@ -14196,7 +14240,7 @@ begin
               if AStr - SubP >= LMin then
               begin
                 NFACode := EntryCode;
-                IsMatched := MatchCore(NFACode, EndCode, SubP);
+                IsMatched := MatchSpecial(NFACode, EndCode, SubP);
                 if IsMatched and (SubP <> AStr) then
                   IsMatched := False;
               end
@@ -14244,7 +14288,7 @@ begin
             SaveP := SubP;
             NFACode := EntryCode;
 
-            IsMatched := MatchCore(NFACode, EndCode, SubP);
+            IsMatched := MatchSpecial(NFACode, EndCode, SubP);
             if IsMatched and (SubP <> AStr) then
               IsMatched := False;
 
@@ -14256,7 +14300,7 @@ begin
               if AStr - SubP >= LMin then
               begin
                 NFACode := EntryCode;
-                IsMatched := MatchCore(NFACode, EndCode, SubP);
+                IsMatched := MatchSpecial(NFACode, EndCode, SubP);
                 if IsMatched and (SubP <> AStr) then
                   IsMatched := False;
               end
@@ -14277,7 +14321,7 @@ begin
           if EndCode.Next.Next <> nil then
             SubCode := FStateList[EndCode.Next.Next.TransitTo];
 
-          if MatchCore(EntryCode, EndCode, SubP) then
+          if MatchSpecial(EntryCode, EndCode, SubP) then
             Result := NextCode
           else
             Result := SubCode;
