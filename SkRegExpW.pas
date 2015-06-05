@@ -487,6 +487,26 @@ type
 {$ENDIF}
   end;
 
+  TRECharRange = record
+    StartWChar, LastWChar: UChar;
+  end;
+  PRECharRange = ^TRECharRange;
+
+  TRECharRangeList = class
+  private
+    FList: TList;
+    FCurIndex: Integer;
+    function Get(Index: Integer): PRECharRange;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function Add(AStartWChar, ALastWChar: UChar): Integer;
+    function Compare(Ch: UChar): Integer;
+    procedure Clear;
+    property Items[Index: Integer]: PRECharRange read Get; default;
+  end;
+
+
   TRECharClassCode = class(TRECode)
   private
     FMap: TRECharMap;
@@ -5330,6 +5350,115 @@ begin
   Result := True;
 end;
 
+{ TRECharRangeList }
+
+function TRECharRangeList.Add(AStartWChar, ALastWChar: UChar): Integer;
+var
+  Item: PRECharRange;
+  LStartCmp, LLastCmp: Integer;
+begin
+  LStartCmp := Compare(AStartWChar);
+  LLastCmp := Compare(ALastWChar);
+  if (LStartCmp < 0) and (LLastCmp < 0) then
+  begin
+    New(Item);
+    Item.StartWChar := AStartWChar;
+    Item.LastWChar := ALastWChar;
+
+    FList.Insert(0, Item);
+  end
+  else if (LStartCmp > 0) and (LLastCmp > 0) then
+  begin
+    New(Item);
+    Item.StartWChar := AStartWChar;
+    Item.LastWChar := ALastWChar;
+
+    Result := FList.Add(Item);
+  end
+  else if (LStartCmp = 0) and (LLastCmp > 0) then
+  begin
+    Get(FCurIndex).LastWChar := ALastWChar;
+    Result := FCurIndex;
+  end
+  else if (LStartCmp < 0) and (LLastCmp = 0) then
+  begin
+    Get(FCurIndex).StartWChar := AStartWChar;
+    Result := FCurIndex;
+  end
+  else
+    Result := -1;
+end;
+
+procedure TRECharRangeList.Clear;
+var
+  I: Integer;
+  P: PRECharRange;
+begin
+  for I := 0 to FList.Count - 1 do
+  begin
+    P := Get(I);
+    if P <> nil then
+      Dispose(P);
+  end;
+  FCurIndex := -1;
+  FList.Clear;
+end;
+
+function TRECharRangeList.Get(Index: Integer): PRECharRange;
+begin
+  Result := FList[Index];
+end;
+
+function TRECharRangeList.Compare(Ch: UChar): Integer;
+var
+  I, K1, K2: Integer;
+  P: PRECharRange;
+begin
+  if FList.Count = 0 then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  I := 0;
+
+  FCurIndex := -1;
+  while I < FList.Count do
+  begin
+    K1 := Get(I).StartWChar;
+    K2 := Get(I).LastWChar;
+
+    if Integer(Ch) < K1 {Get(I).StartWChar} then
+    begin
+      Result := -1;
+      Exit;
+    end
+    else if Integer(Ch) > K2 {Get(I).LastWChar} then
+      Inc(I)
+    else
+    begin
+      Result := 0;
+      FCurIndex := I;
+      Exit;
+    end;
+  end;
+  Result := 1;
+end;
+
+constructor TRECharRangeList.Create;
+begin
+  inherited;
+  FList := TList.Create;
+  FCurIndex := -1;
+end;
+
+destructor TRECharRangeList.Destroy;
+begin
+  Clear;
+  FList.Free;
+  inherited;
+end;
+
 { TRECharClassCode }
 
 function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar): Integer;
@@ -5337,8 +5466,21 @@ var
   C: UChar;
 begin
   Result := 0;
-  for C := AStartWChar to ALastWChar do
-    Add(C);
+  if ALastWChar < 128 then
+  begin
+    if not FNegative then
+    begin
+      for C := AStartWChar to ALastWChar do
+        Add(C);
+    end
+    else
+    begin
+      for C := 0 to AStartWChar - 1 do
+        Add(C);
+      for C := 0 to ALastWChar - 1 do
+        Add(C);
+    end;
+  end;
 end;
 
 function TRECharClassCode.Add(AWChar: UChar): Integer;
@@ -10969,12 +11111,12 @@ begin
 
         if not FHasAccept then
         begin
-//          if (FBEntryState = AEntry) and AState.IsJoinMatch and
-//              not ACode.IsVariable then
-//          begin
-//            if not AState.IsNullMatch and not FInBranch then
-//              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
-//          end;
+          if (FBEntryState = AEntry) and AState.IsJoinMatch and
+              not ACode.IsVariable then
+          begin
+            if not AState.IsNullMatch and not FInBranch then
+              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
+          end;
 
           if (AMatchLen.Min > -1) and (ACode.CharLength.Min > -1) then
             Inc(AMatchLen.Min,  ACode.CharLength.Min)
@@ -14580,8 +14722,8 @@ begin
         begin
           if (FAnchorOffset.Min >= 0) and (FAnchorOffset.Max >= 0) then
             FLeadCharMode := lcmFixedBranch
-          else
-            SetupLeadMatch(lcmVariableBranch);
+//          else
+//            SetupLeadMatch(lcmVariableBranch);
         end;
       end;
     finally
