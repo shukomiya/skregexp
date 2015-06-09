@@ -735,7 +735,7 @@ procedure SyntaxCheck(ADest: TStrings);
     end;
   end;
 
-  procedure CheckReplate;
+  procedure CheckReplace;
   var
     R: TSkRegExp;
   begin
@@ -760,7 +760,7 @@ procedure SyntaxCheck(ADest: TStrings);
 
 begin
 
-  CheckReplate;
+  CheckReplace;
   //2.1 add
   sx('(?<n>a)\1', 'aa', [roNamedGroupOnly]);
   sx('(?<n>a)\k<1>', 'aa', [roNamedGroupOnly]);

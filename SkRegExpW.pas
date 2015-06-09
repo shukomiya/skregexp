@@ -537,8 +537,8 @@ type
     FMatchFuncArray: TRECharClassMatchFuncArray;
   protected
     Match: TList;
-    function InternalAdd(Ch: UChar): Integer;
-    function InternalUChar(AStr: PWideChar; var Len: Integer): UChar; inline;
+    procedure InitCharMap;
+    procedure InternalAdd(Ch: UChar);
     function MatchMap(Ch: UChar): Boolean; inline;
     function MatchStrArray(Ch: UChar): Boolean; inline;
     function MatchCharSet(Ch: UChar): Boolean; inline;
@@ -2458,6 +2458,7 @@ begin
     (CONST_AlnumAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsAlnumU(Ch: UChar): Boolean;
 var
   up, ug: TUnicodeProperty;
@@ -2472,6 +2473,7 @@ begin
     Result := ug in [upL, upM];
   end;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsAlphaA(Ch: UChar): Boolean; inline;
 begin
@@ -2479,6 +2481,7 @@ begin
       (CONST_AlphaAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsAlphaU(Ch: UChar): Boolean; inline;
 var
   up: TUnicodeProperty;
@@ -2486,6 +2489,7 @@ begin
   up := GetUnicodeGeneralCategory(Ch);
   Result := up in [upL, upM];
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsAscii(Ch: UChar): Boolean; inline;
 begin
@@ -2499,11 +2503,13 @@ begin
     (CONST_BlankAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsBlankU(Ch: UChar): Boolean; inline;
 begin
   Result := (Ch = 9) or
     (GetUnicodeCategory(Ch) = upZs);
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsCntrlA(Ch: UChar): Boolean; overload; inline;
 begin
@@ -2512,10 +2518,12 @@ begin
     (CONST_CntrlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsCntrlU(Ch: UChar): Boolean; inline;
 begin
   Result := GetUnicodeCategory(Ch) = upCc;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsDigitA(Ch: UChar): Boolean; inline;
 begin
@@ -2523,10 +2531,12 @@ begin
     (CONST_DigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsDigitU(Ch: UChar): Boolean; inline;
 begin
   Result := GetUnicodeCategory(Ch) = upNd;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsSpaceA(Ch: UChar): Boolean; inline;
 begin
@@ -2534,13 +2544,15 @@ begin
     (CONST_SpaceAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsSpaceU(Ch: UChar): Boolean; inline;
 begin
-  if (Ch < 128) and IsSpaceA(Ch) then
-    Result := True
+  if Ch < 128 then
+    Result := IsSpaceA(Ch)
   else
     Result := (GetUnicodeGeneralCategory(Ch) = upZ)
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsSpacePerlA(Ch: UChar): Boolean; inline; overload;
 begin
@@ -2548,21 +2560,24 @@ begin
     (CONST_SpacePerlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsSpacePerlU(Ch: UChar): Boolean; inline; overload;
 begin
-  if (Ch < 128) and IsSpacePerlA(Ch) then
+  if (Ch < 128) then
   begin
-    Result := True;
-    Exit;
-  end;
-
-  case Ch of
-    $0085, $2028, $2029:
-      Result := True;
-    else
-      Result := GetUnicodeGeneralCategory(Ch) = upZ;
+    Result := IsSpacePerlA(Ch);
+  end
+  else
+  begin
+    case Ch of
+      $0085, $2028, $2029:
+        Result := True;
+      else
+        Result := GetUnicodeGeneralCategory(Ch) = upZ;
+    end;
   end;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsGraphA(Ch: UChar): Boolean; inline;
 begin
@@ -2571,6 +2586,7 @@ begin
     (CONST_GraphAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsGraphU(Ch: UChar): Boolean;
 var
   up: TUnicodeProperty;
@@ -2584,6 +2600,7 @@ begin
     Result := (up <> upCc) and (up <> upCn) and (up <> upCs);
   end;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsLowerA(Ch: UChar): Boolean; inline;
 begin
@@ -2591,10 +2608,12 @@ begin
     (CONST_LowerAMap[Ch div 8] and (1 shl (Ch and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsLowerU(Ch: UChar): Boolean; inline;
 begin
   Result := GetUnicodeCategory(Ch) = upLl;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsPrintA(Ch: UChar): Boolean; inline;
 begin
@@ -2603,6 +2622,7 @@ begin
     (CONST_PrintAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsPrintU(Ch: UChar): Boolean;
 var
   up: TUnicodeProperty;
@@ -2616,6 +2636,7 @@ begin
       ((up <> upCc) and (up <> upCn) and (up <> upCs));
   end;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsPunctA(Ch: UChar): Boolean;  inline;
 begin
@@ -2624,10 +2645,12 @@ begin
     (CONST_PunctAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsPunctU(Ch: UChar): Boolean;  inline;
 begin
   Result := GetUnicodeGeneralCategory(Ch) = upP;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsUpperA(Ch: UChar): Boolean; inline;
 begin
@@ -2635,10 +2658,12 @@ begin
     (CONST_UpperAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsUpperU(Ch: UChar): Boolean; inline;
 begin
   Result := GetUnicodeCategory(Ch) = upLu;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsXDigit(Ch: UChar): Boolean; inline;
 begin
@@ -2652,6 +2677,7 @@ begin
     (CONST_WordAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsWordU(Ch: UChar): Boolean; overload;
 var
   up, ug: TUnicodeProperty;
@@ -2666,6 +2692,7 @@ begin
     Result := (ug in [upL, upM]);
   end;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsAny(Ch: UChar): Boolean; inline;
 begin
@@ -2677,10 +2704,12 @@ begin
   Result := True;
 end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
 function IsAssignedU(Ch: UChar): Boolean; inline;
 begin
   Result := GetUnicodeCategory(Ch) <> upCn;
 end;
+{$ENDIF USE_UNICODE_PROPERTY}
 
 function IsSpaceHorizontal(Ch: UChar): Boolean; inline; overload;
 begin
@@ -4633,7 +4662,11 @@ begin
   begin
     IsW := IsLeadChar(FStrings[I]);
 
+{$IFDEF USE_UNICODE_PROPERTY}
     if not IsCntrlU(ToUChar(@FStrings[I])) then
+{$ELSE USE_UNICODE_PROPERTY}
+    if not IsCntrlA(ToUChar(@FStrings[I])) then
+{$ENDIF USE_UNICODE_PROPERTY}
     begin
       if IsW then
       begin
@@ -4832,8 +4865,6 @@ begin
 end;
 
 function TREWordCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  Ch: UChar;
 begin
   Result := False;
   Len := 0;
@@ -4849,11 +4880,13 @@ begin
       if Result then
         Len := 1;
     end
+{$IFDEF USE_UNICODE_PROPERTY}
     else
     begin
       if not FIsASCII then
         Result := IsWordU(ToUChar(AStr, Len));
     end;
+{$ENDIF USE_UNICODE_PROPERTY}
   end
   else
   begin
@@ -4863,11 +4896,13 @@ begin
       if Result then
         Len := 1;
     end
+{$IFDEF USE_UNICODE_PROPERTY}
     else
     begin
       if not FIsASCII then
         Result := not IsWordU(ToUChar(AStr, Len));
     end;
+{$ENDIF USE_UNICODE_PROPERTY}
   end;
 end;
 
@@ -4906,10 +4941,16 @@ begin
     if (ACode is TRELiteralCode) then
     begin
       if FIsASCII then
+      begin
         Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
           IsWordA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
+      begin
         Result := IsWordU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+{$ENDIF USE_UNICODE_PROPERTY}
+      end;
 
       if FNegative then
         Result := not Result;
@@ -4921,11 +4962,19 @@ end;
 
 function TREWordCharCode.Match(Ch: UChar): Boolean;
 begin
+  Result := False;
+
   if Ch < 128 then
-    Result := IsWordA(Ch)
+  begin
+    Result := IsWordA(Ch);
+{$IFDEF USE_UNICODE_PROPERTY}
+  end
   else
+  begin
     if not FIsASCII then
       Result := IsWordU(Ch);
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
   if FNegative then
     Result := not Result;
 end;
@@ -4956,8 +5005,6 @@ begin
 end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  Ch: UChar;
 begin
   Result := False;
   Len := 0;
@@ -4972,11 +5019,13 @@ begin
       Result := IsDigitA(UChar(AStr^));
       if Result then
         Len := 1;
+{$IFDEF USE_UNICODE_PROPERTY}
     end
     else
     begin
       if not FIsASCII then
         Result := IsDigitU(ToUChar(AStr, Len));
+{$ENDIF USE_UNICODE_PROPERTY}
     end;
   end
   else
@@ -4986,11 +5035,13 @@ begin
       Result := not IsDigitA(UChar(AStr^));
       if Result then
         Len := 1;
+{$IFDEF USE_UNICODE_PROPERTY}
     end
     else
     begin
       if not FIsASCII then
         Result := not IsDigitU(ToUChar(AStr, Len));
+{$ENDIF USE_UNICODE_PROPERTY}
     end;
   end;
 end;
@@ -5023,10 +5074,16 @@ begin
     if (ACode is TRELiteralCode) then
     begin
       if FIsASCII then
+      begin
         Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
-          IsDigitA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+          IsDigitA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
+      begin
         Result := IsDigitU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+{$ENDIF USE_UNICODE_PROPERTY}
+      end;
 
       if FNegative then
         Result := not Result;
@@ -5038,11 +5095,20 @@ end;
 
 function TREDigitCharCode.Match(Ch: UChar): Boolean;
 begin
+  Result := False;
+
   if Ch < 128 then
-    Result := IsDigitA(Ch)
+  begin
+    Result := IsDigitA(Ch);
+{$IFDEF USE_UNICODE_PROPERTY}
+  end
   else
+  begin
     if not FIsASCII then
       Result := IsDigitU(Ch);
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
+
   if FNegative then
     Result := not Result;
 end;
@@ -5069,8 +5135,6 @@ begin
 end;
 
 function TRESpaceCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  Ch: UChar;
 begin
   Result := False;
   Len := 0;
@@ -5085,11 +5149,13 @@ begin
       Result := IsSpacePerlA(UChar(AStr^));
       if Result then
         Len := 1;
+{$IFDEF USE_UNICODE_PROPERTY}
     end
     else
     begin
       if not FIsASCII then
         Result := IsSpacePerlU(ToUChar(AStr, Len));
+{$ENDIF USE_UNICODE_PROPERTY}
     end;
   end
   else
@@ -5099,11 +5165,13 @@ begin
       Result := not IsSpacePerlA(UChar(AStr^));
       if Result then
         Len := 1;
+{$IFDEF USE_UNICODE_PROPERTY}
     end
     else
     begin
       if not FIsASCII then
         Result := not IsSpacePerlU(ToUChar(AStr, Len));
+{$ENDIF USE_UNICODE_PROPERTY}
     end;
   end;
 end;
@@ -5136,11 +5204,17 @@ begin
     if (ACode is TRELiteralCode) then
     begin
       if FIsASCII then
+      begin
         Result := (PWideChar((ACode as TRELiteralCode).FStrings) < #128) and
-          IsSpacePerlA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)))
+          IsSpacePerlA(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
+      begin
         Result :=
           IsSpacePerlU(ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)));
+{$ENDIF USE_UNICODE_PROPERTY}
+      end;
 
       if FNegative then
         Result := not Result;
@@ -5152,11 +5226,20 @@ end;
 
 function TRESpaceCharCode.Match(Ch: UChar): Boolean;
 begin
+  Result := False;
+
   if Ch < 128 then
-    Result := IsSpacePerlA(Ch)
+  begin
+    Result := IsSpacePerlA(Ch);
+{$IFDEF USE_UNICODE_PROPERTY}
+  end
   else
+  begin
     if not FIsASCII then
       Result := IsSpacePerlU(Ch);
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
+
   if FNegative then
     Result := not Result;
 end;
@@ -5379,6 +5462,8 @@ var
   Item: PRECharRange;
   LStartCmp, LLastCmp: Integer;
 begin
+  Result := -1;
+
   LStartCmp := Compare(AStartWChar);
   LLastCmp := Compare(ALastWChar);
   if (LStartCmp < 0) and (LLastCmp < 0) then
@@ -5434,7 +5519,6 @@ end;
 function TRECharRangeList.Compare(Ch: UChar): Integer;
 var
   I, K1, K2: Integer;
-  P: PRECharRange;
 begin
   if FList.Count = 0 then
   begin
@@ -5508,14 +5592,26 @@ type
 
 var
   C: UChar;
-  StartStr, LastStr, SubStartStr, SubLastStr,
-  WStartStr, WLastStr: REString;
+  StartStr, LastStr: REString;
 begin
   Result := 0;
   if ALastWChar < 128 then
   begin
-    for C := AStartWChar to ALastWChar do
-      Add(C);
+    if not FNegative then
+    begin
+      for C := AStartWChar to ALastWChar do
+        Add(C);
+    end
+    else
+    begin
+      for C := AStartWChar to ALastWChar do
+        Add(C);
+//      for C := 0 to AStartWChar - 1 do
+//        Add(C);
+//
+//      for C := ALastWChar + 1 to 127 do
+//        Add(C);
+    end;
 
     Include(FKind, ckMap);
   end
@@ -5613,12 +5709,12 @@ begin
   N := 0;
   SetLength(FMatchFuncArray, N);
 
-  if ckMap in FKind then
-  begin
-    SetLength(FMatchFuncArray, N + 1);
-    FMatchFuncArray[N] := MatchMap;
-    Inc(N);
-  end;
+//  if ckMap in FKind then
+//  begin
+//    SetLength(FMatchFuncArray, N + 1);
+//    FMatchFuncArray[N] := MatchMap;
+//    Inc(N);
+//  end;
   if ckStrArray in FKind then
   begin
     SetLength(FMatchFuncArray, N + 1);
@@ -5635,11 +5731,26 @@ begin
   begin
     SetLength(FMatchFuncArray, N + 1);
     FMatchFuncArray[N] := MatchRange;
-    Inc(N);
   end;
 end;
 
-function TRECharClassCode.InternalAdd(Ch: UChar): Integer;
+procedure TRECharClassCode.InitCharMap;
+var
+  I: Integer;
+begin
+  if not FNegative then
+  begin
+    for I := 0 to 15 do
+      FMap[I] := 0;
+  end
+  else
+  begin
+    for I := 0 to 15 do
+      FMap[I] := $FF;
+  end;
+end;
+
+procedure TRECharClassCode.InternalAdd(Ch: UChar);
 
   procedure StrArrayInsert(Ch: UChar; Index: Integer);
   var
@@ -5656,11 +5767,14 @@ function TRECharClassCode.InternalAdd(Ch: UChar): Integer;
 
 var
   I: Integer;
-  Left, Right, Mid: Integer;
 begin
   if Ch < 128 then
   begin
-    FMap[Byte(Ch) div 8] := FMap[Byte(Ch) div 8] or (1 shl (Byte(Ch) and 7));
+    if not FNegative then
+      FMap[Byte(Ch) div 8] := FMap[Byte(Ch) div 8] or (1 shl (Byte(Ch) and 7))
+    else
+      FMap[Byte(Ch) div 8] := FMap[Byte(Ch) div 8] xor (1 shl (Byte(Ch) and 7));
+
     Inc(FMapCount);
     Include(FKind, ckMap);
   end
@@ -5705,24 +5819,6 @@ begin
   end;
 end;
 
-function TRECharClassCode.InternalUChar(AStr: PWideChar;
-  var Len: Integer): UChar;
-var
-  Ch: Integer;
-begin
-  if IsLeadChar(AStr^) then
-  begin
-    Result := ((WORD(AStr^) and $03FF) shl 10) +
-      ((WORD((AStr + 1)^) and $03FF) + $10000);
-    Len := 2;
-  end
-  else
-  begin
-    Result := UChar(AStr^);
-    Len := 1;
-  end;
-end;
-
 constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
   AOptions: TREOptions);
 begin
@@ -5735,6 +5831,7 @@ begin
   FOptions := AOptions;
   FSimpleClass := True;
   SetLength(FMatchFuncArray, 0);
+  InitCharMap;
 end;
 
 destructor TRECharClassCode.Destroy;
@@ -5776,9 +5873,7 @@ end;
 
 function TRECharClassCode.Find(AStr: PWideChar): PWideChar;
 var
-  LCode: Pointer;
   L: Integer;
-  IsMatch: Boolean;
 begin
   while AStr < FRegExp.FMatchEndP do
   begin
@@ -5795,7 +5890,6 @@ end;
 function TRECharClassCode.MatchCharSet(Ch: UChar): Boolean;
 var
   LCode: Pointer;
-  Len: Integer;
 begin
   Result := True;
   for LCode in FCodeList do
@@ -5841,9 +5935,7 @@ function TRECharClassCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 var
   I: Integer;
   Ch: UChar;
-  LCode: Pointer;
   FD: TUnicodeMultiChar;
-  LFunc: TRECharClassMatchFunc;
 begin
   Result := False;
   Len := 0;
@@ -5879,26 +5971,26 @@ begin
 {$ENDIF USE_UNICODE_PROPERTY}
   end;
 
-//  if roIgnoreCase in FOptions then
-//  begin
-//    if Ch < $80 then
-//    begin
-//      case Ch of
-//        Ord('A')..Ord('Z'):
-//          Ch := Ch xor $0020;
-//      end;
-//{$IFDEF USE_UNICODE_PROPERTY}
-//    end
-//    else
-//    begin
-//      if not (roASCIIOnly in FOptions) then
-//      begin
-//        FD := GetUnicodeFoldCase(Ch);
-//        Ch := FD[FD[0]];
-//      end;
-//{$ENDIF USE_UNICODE_PROPERTY}
-//    end;
-//  end;
+  if ckMap in FKind then
+  begin
+    if (Ch < 128) and
+        ((FMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0) then
+    begin
+      Result := True;
+      Len := 1;
+      Exit;
+    end;
+
+    if FNegative and (Ch > 127) then
+    begin
+      Result := True;
+      Len := 1;
+      Exit;
+    end;
+  end;
+
+  if System.Length(FMatchFuncArray) = 0 then
+    Exit;
 
   if not FNegative then
   begin
@@ -5963,44 +6055,66 @@ function TRECharClassCode.GetDebugStr: REString;
 
   function GetMapDebugStr: REString;
   var
-    I: Integer;
     SL: TREStringList;
     C, Prev, Start, Last: UChar;
+    IsStart: Boolean;
   begin
     SL := TREStringList.Create;
     try
       SL.Clear;
+      IsStart := False;
+      Start := 0;
+      Last := 0;
+      Prev := 0;
 
-      for I := 0 to 127 do
+      for C := 0 to 127 do
       begin
-        if (FMap[I div 8] and (1 shl (I and 7))) <> 0 then
-          SL.Add(UCharToString(I));
-      end;
-
-      if SL.Count > 0 then
-      begin
-        Start := ToUChar(PWideChar(SL[0]));
-        Last := Start;
-        Prev := Start;
-
-        for I := 1 to SL.Count - 1 do
+        if (FMap[C div 8] and (1 shl (C and 7))) <> 0 then
         begin
-          C := ToUChar(PWideChar(SL[I]));
-          if C = Prev + 1 then
+          if not IsStart then
           begin
-            Last := C;
-            Prev := C;
-          end
-          else
+            Start := C;
+            IsStart := True;
+          end;
+          Prev := C;
+          Last := C;
+        end
+        else
+        begin
+          if IsStart then
           begin
             Result := Result + BuidStr(Start, Last, Prev) + ' ';
-            Start := C;
-            Last := C;
-            Prev := C;
+            IsStart := False;
           end;
         end;
-        Result := Result + BuidStr(Start, Last, Prev) + ' ';
       end;
+      if IsStart then
+        Result := Result + BuidStr(Start, Last, Prev) + ' ';
+
+//      if SL.Count > 0 then
+//      begin
+//        Start := ToUChar(PWideChar(SL[0]));
+//        Last := Start;
+//        Prev := Start;
+//
+//        for I := 1 to SL.Count - 1 do
+//        begin
+//          C := ToUChar(PWideChar(SL[I]));
+//          if C = Prev + 1 then
+//          begin
+//            Last := C;
+//            Prev := C;
+//          end
+//          else
+//          begin
+//            Result := Result + BuidStr(Start, Last, Prev) + ' ';
+//            Start := C;
+//            Last := C;
+//            Prev := C;
+//          end;
+//        end;
+//        Result := Result + BuidStr(Start, Last, Prev) + ' ';
+//      end;
 
     finally
       SL.Free;
@@ -6030,8 +6144,7 @@ end;
 
 function TRECharClassCode.IsOverlap(ACode: TRECode): Boolean;
 var
-  LCode: TRECode;
-  I, L: Integer;
+  L: Integer;
 begin
   Result := FNegative;
 
@@ -6130,7 +6243,10 @@ begin
       Dec(AStr);
 
       if AStr^ < #128 then
-        PrevType := IsWordA(UChar(AStr^))
+      begin
+        PrevType := IsWordA(UChar(AStr^));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
       begin
         if not FIsASCII then
@@ -6142,6 +6258,7 @@ begin
         end
         else
           PrevType := False;
+{$ENDIF USE_UNICODE_PROPERTY}
       end;
 
       Inc(AStr);
@@ -6152,7 +6269,10 @@ begin
     else
     begin
       if AStr^ < #128 then
-        CurType := IsWordA(UChar(AStr^))
+      begin
+        CurType := IsWordA(UChar(AStr^));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
       begin
         if not FIsASCII then
@@ -6164,6 +6284,7 @@ begin
         end
         else
           CurType := False;
+{$ENDIF USE_UNICODE_PROPERTY}
       end;
     end;
 
@@ -6176,7 +6297,10 @@ begin
       Dec(AStr);
 
       if AStr^ < #128 then
-        PrevType := not IsWordA(UChar(AStr^))
+      begin
+        PrevType := not IsWordA(UChar(AStr^));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
       begin
         if not FIsASCII then
@@ -6188,6 +6312,7 @@ begin
         end
         else
           PrevType := True;
+{$ENDIF USE_UNICODE_PROPERTY}
       end;
 
       Inc(AStr);
@@ -6198,7 +6323,10 @@ begin
     if AStr <> FRegExp.FMatchEndP then
     begin
       if AStr^ < #128 then
-        CurType := not IsWordA(UChar(AStr^))
+      begin
+        CurType := not IsWordA(UChar(AStr^));
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
       begin
         if not FIsASCII then
@@ -6210,6 +6338,7 @@ begin
         end
         else
           CurType := True;
+{$ENDIF USE_UNICODE_PROPERTY}
       end;
     end
     else
@@ -6776,10 +6905,16 @@ begin
   Ch := GetREChar(AStr, L, FCompareOptions, LFold);
 
   if FIsASCII and (FPosixClass <> pckAny) then
+  begin
     Result := (Ch < 128) and
-      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions)
+      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
+{$IFDEF USE_UNICODE_PROPERTY}
+  end
   else
+  begin
     Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
 
   if FNegative then
     Result := not Result;
@@ -6809,13 +6944,19 @@ begin
     if (ACode is TRELiteralCode) then
     begin
       if FIsASCII then
+      begin
         Result := IsPosixClassA(
           ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-          FPosixClass, roIgnoreCase in FOptions)
+          FPosixClass, roIgnoreCase in FOptions);
+{$IFDEF USE_UNICODE_PROPERTY}
+      end
       else
+      begin
         Result := IsPosixClassU(
           ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
           FPosixClass, roIgnoreCase in FOptions);
+{$ENDIF USE_UNICODE_PROPERTY}
+      end;
 
       if FNegative then
         Result := not Result;
@@ -6832,10 +6973,16 @@ begin
   ClearUnicodeMultiChar(LFold);
 
   if FIsASCII and (FPosixClass <> pckAny) then
+  begin
     Result := (Ch < 128) and
-      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions)
+      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
+{$IFDEF USE_UNICODE_PROPERTY}
+  end
   else
+  begin
     Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
 
   if FNegative then
     Result := not Result;
@@ -8223,7 +8370,11 @@ begin
           CharNext(FP);
           Exit;
         end;
+{$IFDEF USE_UNICODE_PROPERTY}
         if IsWordU(ToUChar(FP)) then
+{$ELSE USE_UNICODE_PROPERTY}
+        if IsWordA(ToUChar(FP)) then
+{$ENDIF USE_UNICODE_PROPERTY}
           CharNext(FP)
         else
           Error(sInvalidCharInGroupName);
@@ -8254,8 +8405,10 @@ begin
     end
     else
     begin
+{$IFDEF USE_UNICODE_PROPERTY}
       if not IsWordU(ToUChar(FP)) then
         Error(sInvalidCharInGroupName);
+{$ENDIF USE_UNICODE_PROPERTY}
 
       CharNext(FP);
     end;
@@ -8900,7 +9053,11 @@ begin
               Exit;
             end;
           end;
+{$IFDEF USE_UNICODE_PROPERTY}
           if IsWordU(ToUChar(FP)) then
+{$ELSE USE_UNICODE_PROPERTY}
+          if IsWordA(ToUChar(FP)) then
+{$ENDIF USE_UNICODE_PROPERTY}
             CharNext(FP)
           else
             Error(sInvalidCharInGroupName);
@@ -8918,7 +9075,11 @@ begin
             CharNext(FP);
             Exit;
           end;
+{$IFDEF USE_UNICODE_PROPERTY}
           if IsWordU(ToUChar(FP)) then
+{$ELSE USE_UNICODE_PROPERTY}
+          if IsWordA(ToUChar(FP)) then
+{$ENDIF USE_UNICODE_PROPERTY}
             CharNext(FP)
           else
             Error(sInvalidCharInGroupName);
@@ -13260,9 +13421,8 @@ end;
 
 function TREMatchEngine.Match(AStr: PWideChar): Boolean;
 var
-  I, K, L: Integer;
-  IsCheck: Boolean;
-  P, HeadP, StartP, LastP: PWideChar;
+  I, L: Integer;
+  P, StartP, LastP: PWideChar;
 begin
   Result := False;
   FSkipP := nil;
@@ -13524,7 +13684,6 @@ begin
 
               if FSkipP <> nil then
               begin
-                AStr := FSkipP;
                 FACSearch.SkipP := FSkipP;
                 FSkipP := nil;
                 Break;
@@ -13838,11 +13997,8 @@ begin
 //          end;
         nkStar, nkPlus:
           begin
-            SaveP := AStr;
             SubP := AStr;
             LMatchKind := NFACode.MatchKind;
-            LMin := NFACode.Min;
-            LMax := NFACode.Max;
             NextCode := FStateList[NFACode.TransitTo];
             EntryCode := NFACode;
 
@@ -13960,7 +14116,6 @@ begin
           end;
         nkBound:
           begin
-            SaveP := AStr;
             SubP := AStr;
             LMatchKind := NFACode.MatchKind;
             LMin := NFACode.Min;
@@ -15005,7 +15160,7 @@ var
   NFACode, NextCode: TRENFAState;
   IsLiteral, NoMap: Boolean;
   LineHeadCount, TextHeadCount: Integer;
-//  LiteralCount: Integer;
+  LiteralCount: Integer;
 begin
   IsLiteral := False;
 
@@ -15050,7 +15205,7 @@ begin
   begin
     LineHeadCount := 0;
     TextHeadCount := 0;
-//    LiteralCount := 0;
+    LiteralCount := 0;
 
     for I := 0 to FLeadCode.Count - 1 do
     begin
@@ -15065,23 +15220,22 @@ begin
       begin
         Inc(TextHeadCount);
       end
-//      else if (FLeadCode[I].Code is TRECharCode) or
-//          (FLeadCode[I].Code is TRELiteralCode) then
-//      begin
-//        FACSearch.Add(FLeadCode[I].Code);
-//        if I = 0 then
-//        begin
-//          FAnchorOffset.Min := FLeadCode[I].Offset.Min;
-//          FAnchorOffset.Max := FLeadCode[I].Offset.Max;
-//        end
-//        else
-//        begin
-//          FAnchorOffset.Min := Min(FAnchorOffset.Min, FLeadCode[I].Offset.Min);
-//          FAnchorOffset.Max := Min(FAnchorOffset.Max, FLeadCode[I].Offset.Max);
-//        end;
-//
-//        Inc(LiteralCount);
-//      end
+      else if (FLeadCode[I].Code is TRELiteralCode) then
+      begin
+        FACSearch.Add(FLeadCode[I].Code);
+        if I = 0 then
+        begin
+          FAnchorOffset.Min := FLeadCode[I].Offset.Min;
+          FAnchorOffset.Max := FLeadCode[I].Offset.Max;
+        end
+        else
+        begin
+          FAnchorOffset.Min := Min(FAnchorOffset.Min, FLeadCode[I].Offset.Min);
+          FAnchorOffset.Max := Min(FAnchorOffset.Max, FLeadCode[I].Offset.Max);
+        end;
+
+        Inc(LiteralCount);
+      end
       else
       begin
         FLeadCharMode := lcmNone;
@@ -15090,24 +15244,23 @@ begin
       end;
     end;
 
-//    if LiteralCount = FLeadCode.Count then
-//    begin
-//      NFACode := FStateList[FRegExp.FEntryState];
-//
-//      while NFACode <> nil do
-//      begin
-//        NextCode := FStateList[NFACode.TransitTo];
-//        if NextCode.Kind <> nkEnd then
-//        begin
-//          FLeadCharMode := lcmFirstBranch;
-//          Exit;
-//        end;
-//        NFACode := NFACode.Next;
-//      end;
-//      FLeadCharMode := lcmSimpleBranch;
-//    end
-//    else
-    if LineHeadCount = FLeadCode.Count then
+    if LiteralCount = FLeadCode.Count then
+    begin
+      NFACode := FStateList[FRegExp.FEntryState];
+
+      while NFACode <> nil do
+      begin
+        NextCode := FStateList[NFACode.TransitTo];
+        if NextCode.Kind <> nkEnd then
+        begin
+          FLeadCharMode := lcmFirstBranch;
+          Exit;
+        end;
+        NFACode := NFACode.Next;
+      end;
+      FLeadCharMode := lcmSimpleBranch;
+    end
+    else if LineHeadCount = FLeadCode.Count then
       FLeadCharMode := lcmLineTop
     else if TextHeadCount = FLeadCode.Count then
       FLeadCharMode := lcmTextTop;
@@ -15120,9 +15273,9 @@ begin
     if NoMap then
     begin
       FLeadMap.Clear;
-//      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
-//        FLeadCharMode := lcmHasLead
-//      else
+      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
+        FLeadCharMode := lcmHasLead
+      else
         FLeadCharMode := lcmNone;
     end
     else
@@ -16287,7 +16440,11 @@ begin
         Result := Result + '\e';
     else
       begin
+{$IFDEF USE_UNICODE_PROPERTY}
         if IsCntrlU(ToUChar(Str, I)) then
+{$ELSE USE_UNICODE_PROPERTY}
+        if IsCntrlA(ToUChar(Str, I)) then
+{$ENDIF USE_UNICODE_PROPERTY}
         begin
           Result := Result + Format('\x{%.2x}', [Ord(Str[I])])
         end
