@@ -283,32 +283,6 @@ type
   TREASCIICharMapArray = array[0..15] of Byte;
   TRECharMapArray = array[0..CONST_CharMapMax - 1] of Pointer;
   
-  TRECharMap = class
-  private
-    FMap: array[0..CONST_CharMapMax - 1] of Pointer;
-    FASCIIMap: TREASCIICharMapArray;
-    FStartChar, FLastChar: UChar;
-    FCount: Integer;
-    FHasUnicode: Boolean;
-    FIgnoreCase: Boolean;
-    FASCIIOnly: Boolean;
-  protected
-    procedure InternalAdd(Ch: UChar);
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure Assign(Source: TRECharMap);
-    function Add(Ch: UChar; AOptions: TRECompareOptions): Integer; overload;
-    procedure Add(AMap: TREASCIICharMapArray; IsNegative: Boolean); overload;
-    procedure Clear;
-    function Count: Integer;
-    function IsExists(AStr: PWideChar): Boolean; overload;
-{$IFDEF SKREGEXP_DEBUG}
-    procedure MapToList(ADest: TREStrings);
-    function GetDebugStr: REString;
-{$ENDIF SKREGEXP_DEBUG}
-  end;
-
   TCalloutData = record
     Version: Integer;
     CalloutNumber: Integer;
@@ -325,12 +299,14 @@ type
   TRECode = class
   private
     FRegExp: TSkRegExp;
+    FOptions: TREOptions;
+    FNegative: Boolean;
   protected
     function GetLength: Integer; virtual;
     function GetCharLength: TRETextPosRec; virtual;
     function GetSearch: TREQuickSearch; virtual;
   public
-    constructor Create(ARegExp: TSkRegExp);
+    constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
     function CompareCode(Source: TRECode): Integer; virtual;
     function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
       overload; virtual;
@@ -345,7 +321,7 @@ type
     // この Code の末尾が ACode の先頭と一致すればTrue。繰り返しの最適化用
     function IsOverlap(ACode: TRECode): Boolean; virtual;
     function IsVariable: Boolean; virtual;
-    function Match(Ch: UChar): Boolean; virtual;
+//    function Match(Ch: UChar): Boolean; virtual;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; virtual;
 {$ENDIF}
@@ -362,7 +338,6 @@ type
     FSubP: PWideChar;
     FLength: Integer;
     FCharLength: Integer;
-    FOptions: TREOptions;
     FCompareOptions: TRECompareOptions;
     FSearch: TREQuickSearch;
   protected
@@ -389,7 +364,6 @@ type
 
   TREAnyCharCode = class(TRECode)
   private
-    FOptions: TREOptions;
     FIsMatchAll: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
@@ -404,8 +378,6 @@ type
 
   TREWordCharCode = class(TRECode)
   private
-    FOptions: TREOptions;
-    FNegative: Boolean;
     FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
@@ -414,7 +386,7 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -422,8 +394,6 @@ type
 
   TREDigitCharCode = class(TRECode)
   private
-    FOptions: TREOptions;
-    FNegative: Boolean;
     FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
@@ -432,7 +402,7 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -440,8 +410,6 @@ type
 
   TRESpaceCharCode = class(TRECode)
   private
-    FOptions: TREOptions;
-    FNegative: Boolean;
     FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
@@ -450,37 +418,33 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
   end;
 
   TREHorizontalSpaceCharCode = class(TRECode)
-  private
-    FNegative: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean);
     function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
   end;
 
   TREVerticalSpaceCharCode = class(TRECode)
-  private
-    FNegative: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean);
     function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -526,19 +490,17 @@ type
   TRECharClassMatchFunc = function(AStr: PWideChar; var Len: Integer): Boolean of object;
   TRECharClassMatchFuncArray = array of TRECharClassMatchFunc;
 
-  TRECharClassPosixRec = record
+  TREPosixCharSetRec = record
     Kind: TREPosixClassKind;
     IsNegative: Boolean;
   end;
+  TREPosixCharSetArray = array of TREPosixCharSetRec;
 
-  TRECharClassPosixArray = array of TRECharClassPosixRec;
-
-  TRECharClassPropertyRec = record
+  TREPropertyCharSetRec = record
     Kind: TUnicodeProperty;
     IsNegative: Boolean;
   end;
-
-  TRECharClassPropertyArray = array of TRECharClassPropertyRec;
+  TREPropertyCharSetArray = array of TREPropertyCharSetRec;
 
   TRECharClassCode = class(TRECode)
   private
@@ -547,45 +509,46 @@ type
     FWChar: UChar;
     FCharCount: Integer;
     FCharSetCount: Integer;
-    FASCIIAny: Boolean;
-    FNegative: Boolean;
     FIgnoreCase: Boolean;
+    FASCIIOnly: Boolean;
     FCharRange: TRECharRangeList;
-    FOptions: TREOptions;
-    FSimpleClass: Boolean;
     FHasRange: Boolean;
     FMatchFuncArray: TRECharClassMatchFuncArray;
-    FPosixClass: TRECharClassPosixArray;
-    FUnicodeProperty: TRECharClassPropertyArray;
+    FPosixClass: TREPosixCharSetArray;
+    FUnicodeProperty: TREPropertyCharSetArray;
     FHasUnicode: Boolean;
     FHasMap: Boolean;
+    function GetSimpleClass: Boolean;
   protected
     Match: TList;
     procedure InitCharMap(IsNegative: Boolean);
     procedure ClearCharMap;
     procedure InternalAdd(Ch: UChar);
-    function MatchASCIIMap(AStr: PWideChar; var Len: Integer): Boolean;
-    function MatchMap(AStr: PWideChar; var Len: Integer): Boolean;
-    function MatchCharSet(AStr: PWideChar; var Len: Integer): Boolean;
-
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean;
       AOptions: TREOptions);
     destructor Destroy; override;
+    procedure Clear;
     function Add(AWChar: UChar): Integer; overload;
+    function Add(AWChar: UChar; ACompareOptions: TRECompareOptions): Integer; overload;
     function Add(AStartWChar, ALastWChar: UChar): Integer; overload;
+    function Add(AStartWChar, ALastWChar: UChar; ACompareOptions: TRECompareOptions): Integer; overload;
     function Add(APosixClassKind: TREPosixClassKind; IsNegative: Boolean): Integer; overload;
     function Add(AUnicodeProperty: TUnicodeProperty; IsNegative: Boolean): Integer; overload;
     function Add(AMap: TREASCIICharMapArray; IsNegative: Boolean): Integer; overload;
+    function Add(ACharClass: TRECharClassCode): Integer; overload;
     function ExecRepeat(var AStr: PWideChar; IsGreedy: Boolean;
       const AMin: Integer; const AMax: Integer = MaxInt): Boolean; overload; override;
     function Find(AStr: PWideChar): PWideChar; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+    function IsExists(AStr: PWideChar): Boolean;
     function IsOverlap(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
-    property SimpleClass: Boolean read FSimpleClass;
+    property SimpleClass: Boolean read GetSimpleClass;
+    property IgnoreCase: Boolean read FIgnoreCase;
+    property ASCIIOnly: Boolean read FASCIIOnly;
     property HasRange: Boolean read FHasRange;
   end;
 
@@ -606,8 +569,6 @@ type
 
   TREBoundaryCode = class(TRECode)
   private
-    FOptions: TREOptions;
-    FNegative: Boolean;
     FIsASCII: Boolean;
   protected
     function GetCharLength: TRETextPosRec; override;
@@ -624,7 +585,6 @@ type
   TREReferenceCode = class(TRECode)
   private
     FGroupIndex: Integer;
-    FOptions: TREOptions;
     FCompareOptions: TRECompareOptions;
   protected
     function GetCharLength: TRETextPosRec; override;
@@ -643,7 +603,6 @@ type
   private
     FGroupName: REString;
     FGroupIndex: Integer;
-    FOptions: TREOptions;
     FCompareOptions: TRECompareOptions;
   protected
     function GetCharLength: TRETextPosRec; override;
@@ -660,12 +619,9 @@ type
   end;
 
   TRELineHeadCode = class(TRECode)
-  private
-    FOptions: TREOptions;
   protected
     function GetCharLength: TRETextPosRec; override;
   public
-    constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -674,12 +630,9 @@ type
   end;
 
   TRELineTailCode = class(TRECode)
-  private
-    FOptions: TREOptions;
   protected
     function GetCharLength: TRETextPosRec; override;
   public
-    constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -723,10 +676,7 @@ type
   TREPosixCharClassCode = class(TRECode)
   private
     FPosixClass: TREPosixClassKind;
-    FOptions: TREOptions;
     FCompareOptions: TRECompareOptions;
-    FNegative: Boolean;
-    FIsASCII: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
       AOptions: TREOptions; ANegative: Boolean);
@@ -734,7 +684,7 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -744,7 +694,6 @@ type
   TREPropertyCode = class(TRECode)
   private
     FUniCodeProperty: TUnicodeProperty;
-    FNegative: Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AUnicodeProperty: TUnicodeProperty;
       ANegative: Boolean);
@@ -752,7 +701,7 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-    function Match(Ch: UChar): Boolean; override;
+//    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -1443,7 +1392,7 @@ type
     FLeadStrings: TRECode;
     FAnchorStrings: TRECode;
     FLeadCharMode: TRELeadCharMode;
-    FLeadMap: TRECharMap;
+    FLeadMap: TRECharClassCode;
     FACSearch: TREACSearch;
     FLeadCharOffset: TRETextPosRec;
     FAnchorOffset: TRETextPosRec;
@@ -4074,367 +4023,6 @@ begin
   Result := FEndP - FStartP;
 end;
 
-{ TRECharMap }
-
-function TRECharMap.Add(Ch: UChar; AOptions: TRECompareOptions): Integer;
-var
-  LStr, SubStr: REString;
-begin
-  Result := 1;
-
-  InternalAdd(Ch);
-
-  LStr := UCharToString(Ch);
-
-  if AOptions = [] then
-  begin
-    InternalAdd(ToUChar(@LStr[1]));
-    Inc(FCount);
-    Exit;
-  end;
-
-  if coIgnoreCase in AOptions then
-  begin
-    FIgnoreCase := True;
-    FASCIIOnly := coASCIIOnly in AOptions;
-    SubStr := ToFoldCase(LStr, FASCIIOnly);
-    Result := Length(SubStr);
-    InternalAdd(ToUChar(@SubStr[1]));
-    Inc(FCount);
-  end;
-
-{$IFDEF JapaneseExt}
-  if coIgnoreWidth in AOptions then
-  begin
-    SubStr := ToWide(LStr);
-    if SubStr <> LStr then
-    begin
-      InternalAdd(ToUChar(@SubStr[1]));
-      Inc(FCount);
-    end;
-    SubStr := ToHalf(LStr);
-    if SubStr <> LStr then
-    begin
-      InternalAdd(ToUChar(@SubStr[1]));
-      Inc(FCount);
-    end;
-  end;
-
-  if coIgnoreKana in AOptions then
-  begin
-    SubStr := ToHiragana(LStr);
-    if SubStr <> LStr then
-    begin
-      InternalAdd(ToUChar(@SubStr[1]));
-      Inc(FCount);
-    end;
-    SubStr := ToKatakana(LStr);
-    if SubStr <> LStr then
-    begin
-      InternalAdd(ToUChar(@SubStr[1]));
-      Inc(FCount);
-    end;
-  end;
-{$ENDIF JapaneseExt}
-end;
-
-procedure TRECharMap.Add(AMap: TREASCIICharMapArray; IsNegative: Boolean);
-var
-  I: Integer;
-begin
-  for I := Low(AMap) to High(AMap) do
-  begin
-    if (FASCIIMap[I div 8] and (1 shl (I mod 8))) <> 0 then
-      Inc(FCount);
-    FASCIIMap[I] := FASCIIMap[I] or AMap[I];
-  end;
-end;
-
-procedure TRECharMap.Assign(Source: TRECharMap);
-begin
-  Clear;
-  FMap := Source.FMap;
-  FASCIIMap := Source.FASCIIMap;
-  FCount := Source.FCount;
-end;
-
-procedure TRECharMap.Clear;
-var
-  I: Integer;
-  P, Next: PRECharMapRec;
-begin
-  for I := 0 to High(FMap) do
-  begin
-    if FMap[I] <> nil then
-    begin
-      P := FMap[I];
-      Next := P.Next;
-      Dispose(P);
-      while Next <> nil do
-      begin
-        P := Next;
-        Next := P.Next;
-        Dispose(P);
-      end;
-    end;
-    FMap[I] := nil;
-  end;
-  for I := 0 to High(FASCIIMap) do
-    FASCIIMap[I] := 0;
-
-  FHasUnicode := False;
-  FIgnoreCase := False;
-  FASCIIOnly := False;
-  FCount := 0;
-end;
-
-function TRECharMap.Count: Integer;
-begin
-  Result := FCount;
-end;
-
-constructor TRECharMap.Create;
-begin
-  inherited Create;
-  FCount := 0;
-  FHasUnicode := False;
-  FIgnoreCase := False;
-  FASCIIOnly := False;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-
-function TRECharMap.GetDebugStr: REString;
-
-  function BuidStr(Start, Last, Prev: UChar): REString;
-  var
-    StartS, LastS: REString;
-  begin
-    if Last - Start > 0 then
-    begin
-      if IsCntrlA(Start) then
-        StartS := Format('($%x)', [Start])
-      else
-      begin
-        StartS := Format('%s($%x)', [UCharToString(Start), Start]);
-      end;
-
-      if IsCntrlA(Last) then
-        LastS := Format('($%x)', [Last])
-      else
-      begin
-        LastS := Format('%s($%x)', [UCharToString(Last), Last]);
-      end;
-
-      Result := Format('%s-%s', [StartS, LastS]);
-    end
-    else
-    begin
-      if IsCntrlA(Prev) then
-        StartS := Format('($%x)', [Prev])
-      else
-      begin
-        StartS := Format('%s($%x)', [UCharToString(Prev), Prev]);
-      end;
-
-      Result := Format('%s', [StartS, LastS]);
-    end;
-  end;
-
-var
-  I: Integer;
-  SL: TREStringList;
-  C, Prev, Start, Last: UChar;
-begin
-  SL := TREStringList.Create;
-  try
-    MapToList(SL);
-
-    if SL.Count > 0 then
-    begin
-      Start := ToUChar(PWideChar(SL[0]));
-      Last := Start;
-      Prev := Start;
-
-      for I := 1 to SL.Count - 1 do
-      begin
-        C := ToUChar(PWideChar(SL[I]));
-        if C = Prev + 1 then
-        begin
-          Last := C;
-          Prev := C;
-        end
-        else
-        begin
-          Result := Result + BuidStr(Start, Last, Prev) + ' ';
-          Start := C;
-          Last := C;
-          Prev := C;
-        end;
-      end;
-      Result := Result + BuidStr(Start, Last, Prev) + ' ';
-    end;
-
-  finally
-    SL.Free;
-  end;
-end;
-{$ENDIF SKREGEXP_DEBUG}
-
-destructor TRECharMap.Destroy;
-begin
-  Clear;
-  inherited;
-end;
-
-function TRECharMap.IsExists(AStr: PWideChar): Boolean;
-var
-  Ch: Cardinal;
-  P: PRECharMapRec;
-  FD: TUnicodeMultiChar;
-begin
-  Result := False;
-
-  if FIgnoreCase then
-  begin
-    if AStr^ < #$80 then
-    begin
-      if (AStr^ >= 'A') and (AStr^ <= 'Z') then
-        Ch := UChar(AStr^) xor $20
-      else
-        Ch := UChar(AStr^);
-{$IFDEF USE_UNICODE_PROPERTY}
-    end
-    else
-    begin
-      Ch := ToUChar(AStr);
-      FD := GetUnicodeFoldCase(Ch);
-      Ch := FD[FD[0]];
-{$ENDIF USE_UNICODE_PROPERTY}
-    end;
-  end
-  else
-  begin
-    if AStr^ < #$80 then
-      Ch := UChar(AStr^)
-    else
-      if IsNoLeadChar(AStr^) then
-        Ch := UChar(AStr^)
-      else
-        Ch := ToUChar(AStr);
-  end;
-
-  if Ch < $80 then
-  begin
-    Result := (FASCIIMap[Ch div 8] and (1 shl (Ch mod 8))) <> 0;
-  end
-  else
-  begin
-    if not FHasUnicode then
-      Exit;
-
-    if (Ch < FStartChar) or (Ch > FLastChar) then
-      Exit;
-
-    P := FMap[Ord(Ch) mod CONST_CharMapMax];
-    if P = nil then
-      Exit;
-
-    if P.Ch = Ch then
-    begin
-      Result := True;
-      Exit;
-    end;
-
-    P := P.Next;
-    while P <> nil do
-    begin
-      if P.Ch = Ch then
-      begin
-        Result := True;
-        Exit;
-      end;
-      P := P.Next;
-    end;
-  end;
-end;
-
-procedure TRECharMap.InternalAdd(Ch: UChar);
-var
-  P, Prev: PRECharMapRec;
-  Index: Integer;
-begin
-  FStartChar := Min(FStartChar, Ch);
-  FLastChar := Max(FLastChar, Ch);
-
-  if Ch <= $FF then
-  begin
-    FASCIIMap[Ch div 8] := FASCIIMap[Ch div 8] or (1 shl (Ch mod 8))
-  end
-  else
-  begin
-    if not FHasUnicode then
-      FHasUnicode := True;
-
-    Index := Ord(Ch) mod CONST_CharMapMax;
-
-    P := FMap[Index];
-    if P = nil then
-    begin
-      New(P);
-      P^.Ch := Ch;
-      P^.Next := nil;
-      FMap[Index] := P;
-    end
-    else
-    begin
-      repeat
-        if P^.Ch = Ch then
-          Exit;
-        Prev := P;
-        P := P.Next;
-      until P = nil;
-
-      New(P);
-      P^.Ch := Ch;
-      P^.Next := nil;
-      Prev.Next := P;
-    end;
-  end;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-procedure TRECharMap.MapToList(ADest: TREStrings);
-var
-  I: Integer;
-  P, Next: PRECharMapRec;
-begin
-  ADest.Clear;
-
-  for I := Low(FASCIIMap) to High(FASCIIMap) do
-  begin
-    if (FASCIIMap[I div 8] and (1 shl (I mod 8))) <> 0 then
-      ADest.Add(UCharToString(I));
-  end;
-
-  for I := 0 to CONST_CharMapMax - 1 do
-  begin
-    if FMap[I] <> nil then
-    begin
-      P := FMap[I];
-      ADest.Add(UCharToString(P.Ch));
-      Next := P.Next;
-      while Next <> nil do
-      begin
-        P := Next;
-        ADest.Add(UCharToString(P.Ch));
-        Next := P.Next;
-      end;
-    end;
-  end;
-end;
-{$ENDIF SKREGEXP_DEBUG}
-
 { TRECode }
 
 function TRECode.CompareCode(Source: TRECode): Integer;
@@ -4442,10 +4030,12 @@ begin
   Result := 0;
 end;
 
-constructor TRECode.Create(ARegExp: TSkRegExp);
+constructor TRECode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
 begin
   inherited Create;
   FRegExp := ARegExp;
+  FOptions := AOptions;
+  FNegative := False;
 end;
 
 function TRECode.ExecRepeat(var AStr: PWideChar; IsGreedy: Boolean; const AMin,
@@ -4548,10 +4138,10 @@ begin
   Result := False;
 end;
 
-function TRECode.Match(Ch: UChar): Boolean;
-begin
-  Result := False;
-end;
+//function TRECode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := False;
+//end;
 
 { TRELiteralCode }
 
@@ -4566,9 +4156,8 @@ constructor TRELiteralCode.Create(ARegExp: TSkRegExp; Str: REString;
 var
   I: Integer;
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, AOptions);
   FStrings := Str;
-  FOptions := AOptions;
   FCompareOptions := REOptionsToRECompareOptions(FOptions);
 
   if coIgnoreCase in FCompareOptions then
@@ -4789,8 +4378,7 @@ end;
 
 constructor TREAnyCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
 begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
+  inherited Create(ARegExp, AOptions);
   FIsMatchAll := roSingleLine in FOptions;
 end;
 
@@ -4885,8 +4473,7 @@ end;
 constructor TREWordCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
+  inherited Create(ARegExp, AOptions);
   FNegative := ANegative;
   FIsASCII := GetASCIIMode(FOptions);
 end;
@@ -4987,24 +4574,24 @@ begin
   end;
 end;
 
-function TREWordCharCode.Match(Ch: UChar): Boolean;
-begin
-  Result := False;
-
-  if Ch < 128 then
-  begin
-    Result := IsWordA(Ch);
-{$IFDEF USE_UNICODE_PROPERTY}
-  end
-  else
-  begin
-    if not FIsASCII then
-      Result := IsWordU(Ch);
-{$ENDIF USE_UNICODE_PROPERTY}
-  end;
-  if FNegative then
-    Result := not Result;
-end;
+//function TREWordCharCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := False;
+//
+//  if Ch < 128 then
+//  begin
+//    Result := IsWordA(Ch);
+//{$IFDEF USE_UNICODE_PROPERTY}
+//  end
+//  else
+//  begin
+//    if not FIsASCII then
+//      Result := IsWordU(Ch);
+//{$ENDIF USE_UNICODE_PROPERTY}
+//  end;
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TREDigitCharCode }
 
@@ -5025,8 +4612,7 @@ end;
 constructor TREDigitCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
+  inherited Create(ARegExp, AOptions);
   FNegative := ANegative;
   FIsASCII := GetASCIIMode(FOptions)
 end;
@@ -5120,25 +4706,25 @@ begin
   end;
 end;
 
-function TREDigitCharCode.Match(Ch: UChar): Boolean;
-begin
-  Result := False;
-
-  if Ch < 128 then
-  begin
-    Result := IsDigitA(Ch);
-{$IFDEF USE_UNICODE_PROPERTY}
-  end
-  else
-  begin
-    if not FIsASCII then
-      Result := IsDigitU(Ch);
-{$ENDIF USE_UNICODE_PROPERTY}
-  end;
-
-  if FNegative then
-    Result := not Result;
-end;
+//function TREDigitCharCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := False;
+//
+//  if Ch < 128 then
+//  begin
+//    Result := IsDigitA(Ch);
+//{$IFDEF USE_UNICODE_PROPERTY}
+//  end
+//  else
+//  begin
+//    if not FIsASCII then
+//      Result := IsDigitU(Ch);
+//{$ENDIF USE_UNICODE_PROPERTY}
+//  end;
+//
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TRESpaceCharCode }
 
@@ -5155,8 +4741,7 @@ end;
 constructor TRESpaceCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
+  inherited Create(ARegExp, AOptions);
   FNegative := ANegative;
   FIsASCII := GetASCIIMode(FOptions);
 end;
@@ -5251,25 +4836,25 @@ begin
   end;
 end;
 
-function TRESpaceCharCode.Match(Ch: UChar): Boolean;
-begin
-  Result := False;
-
-  if Ch < 128 then
-  begin
-    Result := IsSpacePerlA(Ch);
-{$IFDEF USE_UNICODE_PROPERTY}
-  end
-  else
-  begin
-    if not FIsASCII then
-      Result := IsSpacePerlU(Ch);
-{$ENDIF USE_UNICODE_PROPERTY}
-  end;
-
-  if FNegative then
-    Result := not Result;
-end;
+//function TRESpaceCharCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := False;
+//
+//  if Ch < 128 then
+//  begin
+//    Result := IsSpacePerlA(Ch);
+//{$IFDEF USE_UNICODE_PROPERTY}
+//  end
+//  else
+//  begin
+//    if not FIsASCII then
+//      Result := IsSpacePerlU(Ch);
+//{$ENDIF USE_UNICODE_PROPERTY}
+//  end;
+//
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TRHorizontalSpaceCharCode }
 
@@ -5290,7 +4875,7 @@ end;
 constructor TREHorizontalSpaceCharCode.Create(ARegExp: TSkRegExp;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FNegative := ANegative;
 end;
 
@@ -5345,12 +4930,12 @@ begin
   end;
 end;
 
-function TREHorizontalSpaceCharCode.Match(Ch: UChar): Boolean;
-begin
-  Result := IsSpaceHorizontalU(Ch);
-  if FNegative then
-    Result := not Result;
-end;
+//function TREHorizontalSpaceCharCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := IsSpaceHorizontalU(Ch);
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TREVerticalSpaceCharCode }
 
@@ -5371,7 +4956,7 @@ end;
 constructor TREVerticalSpaceCharCode.Create(ARegExp: TSkRegExp;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FNegative := ANegative;
 end;
 
@@ -5426,12 +5011,12 @@ begin
   end;
 end;
 
-function TREVerticalSpaceCharCode.Match(Ch: UChar): Boolean;
-begin
-  Result := IsSpaceVerticalU(Ch);
-  if FNegative then
-    Result := not Result;
-end;
+//function TREVerticalSpaceCharCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := IsSpaceVerticalU(Ch);
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TRELineBreakCharCode }
 
@@ -5546,6 +5131,7 @@ begin
   Result := FList[Index];
 end;
 
+{$IFDEF SKREGEXP_DEBUG}
 function TRECharRangeList.GetDebugStr: REString;
 var
   P: PRECharRange;
@@ -5562,6 +5148,7 @@ begin
         UCharToString(P.LastWChar);
   end;
 end;
+{$ENDIF SKREGEXP_DEBUG}
 
 
 function TRECharRangeList.Compare(Ch: UChar): Integer;
@@ -5618,7 +5205,33 @@ end;
 
 { TRECharClassCode }
 
-function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar): Integer;
+function TRECharClassCode.Add(ACharClass: TRECharClassCode): Integer;
+var
+  I: Integer;
+  P: PRECharMapRec;
+begin
+  Result := 1;
+
+  FIgnoreCase := ACharClass.IgnoreCase;
+  FASCIIOnly := ACharClass.ASCIIOnly;
+
+  for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
+    FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
+
+  for I := Low(ACharClass.FMap) to High(ACharClass.FMap) do
+  begin
+    P := ACharClass.FMap[I];
+    while P <> nil do
+    begin
+      Add(P.Ch);
+
+      P := P.Next;
+    end;
+  end;
+end;
+
+function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar;
+  ACompareOptions: TRECompareOptions): Integer;
 {$IFDEF JapaneseExt}
 type
   TConvertFunc = function(const S: REString): REString;
@@ -5648,28 +5261,33 @@ var
 begin
   Result := 1;
 
+  if not FIgnoreCase and (coIgnoreCase in ACompareOptions) then
+    FIgnoreCase := True;
+  if not FASCIIOnly and (coASCIIOnly in ACompareOptions) then
+    FASCIIOnly := True;
+
   if ALastWChar < 128 then
   begin
     if not FNegative then
     begin
       for C := AStartWChar to ALastWChar do
-        Add(C);
+        Add(C, ACompareOptions);
     end
     else
     begin
       for C := AStartWChar to ALastWChar do
-        Add(C);
+        Add(C, ACompareOptions);
     end;
   end
   else
   begin
     if not FHasUnicode then
       FHasUnicode := True;
-      
+
     if ALastWChar - AStartWChar < 30 then
     begin
       for C := AStartWChar to ALastWChar do
-        Add(C);
+        Add(C, ACompareOptions);
     end
     else
     begin
@@ -5680,22 +5298,21 @@ begin
       if not FHasRange then
       begin
         FHasRange := True;
-        FSimpleClass := False;
       end;
 
 {$IFDEF JapaneseExt}
-      if (roIgnoreWidth in FOptions) or (roIgnoreKana in FOptions) then
+      if (coIgnoreWidth in ACompareOptions) or (coIgnoreKana in ACompareOptions) then
       begin
         StartStr := UCharToString(AStartWChar);
         LastStr := UCharToString(ALastWChar);
 
-        if roIgnoreWidth in FOptions then
+        if coIgnoreWidth in ACompareOptions then
         begin
           ConvertJapaneseExt(StartStr, LastStr, ToWide);
           ConvertJapaneseExt(StartStr, LastStr, ToHalf);
         end;
 
-        if roIgnoreKana in FOptions then
+        if coIgnoreKana in ACompareOptions then
         begin
           StartStr := ToWide(StartStr);
           LastStr := ToWide(LastStr);
@@ -5708,53 +5325,14 @@ begin
   end;
 end;
 
-function TRECharClassCode.Add(AWChar: UChar): Integer;
-var
-  LStr, SubStr: REString;
+function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar): Integer;
 begin
-  Result := 0;
-  FWChar := AWChar;
+  Result := Add(AStartWChar, ALastWChar,  REOptionsToRECompareOptions(FOptions));
+end;
 
-  if AWChar > 127 then
-    if not FHasUnicode then
-      FHasUnicode := True;
-      
-  LStr := UCharToString(AWChar);
-
-{$IFDEF JapaneseExt}
-  if (roIgnoreWidth in FOptions) or (roIgnoreKana in FOptions) then
-  begin
-    if roIgnoreWidth in FOptions then
-    begin
-      SubStr := ToWide(LStr);
-      if SubStr <> LStr then
-        InternalAdd(ToUChar(@SubStr[1]));
-
-      SubStr := ToHalf(LStr);
-      if SubStr <> LStr then
-        InternalAdd(ToUChar(@SubStr[1]));
-    end;
-
-    if roIgnoreKana in FOptions then
-    begin
-      SubStr := ToHiragana(LStr);
-      if SubStr <> LStr then
-        InternalAdd(ToUChar(@SubStr[1]));
-
-      SubStr := ToKatakana(LStr);
-      if SubStr <> LStr then
-        InternalAdd(ToUChar(@SubStr[1]));
-    end;
-  end;
-{$ENDIF JapaneseExt}
-
-  if roIgnoreCase in FOptions then
-  begin
-    SubStr := ToFoldCase(LStr, roASCIIOnly in FOptions);
-    InternalAdd(ToUChar(@SubStr[1]));
-  end
-  else
-    InternalAdd(ToUChar(@LStr[1]));
+function TRECharClassCode.Add(AWChar: UChar): Integer;
+begin
+  Result := Add(AWChar, REOptionsToRECompareOptions(FOptions));
 end;
 
 function TRECharClassCode.Add(APosixClassKind: TREPosixClassKind;
@@ -5762,9 +5340,6 @@ function TRECharClassCode.Add(APosixClassKind: TREPosixClassKind;
 begin
   Result := 1;
   Inc(FCharSetCount);
-
-  if FSimpleClass then
-    FSimpleClass := False;
 
   if GetASCIIMode(FOptions) then
   begin
@@ -5823,9 +5398,6 @@ begin
   Result := 1;
   Inc(FCharSetCount);
 
-  if FSimpleClass then
-    FSimpleClass := False;
-
   if not FHasUnicode then
     FHasUnicode := True;
 
@@ -5850,6 +5422,71 @@ begin
   begin
     FASCIIMap[I] := FASCIIMap[I] or AMap[I];
   end;
+end;
+
+function TRECharClassCode.Add(AWChar: UChar;
+  ACompareOptions: TRECompareOptions): Integer;
+var
+  LStr, SubStr: REString;
+begin
+  Result := 0;
+  FWChar := AWChar;
+
+  if AWChar > 127 then
+    if not FHasUnicode then
+      FHasUnicode := True;
+
+  LStr := UCharToString(AWChar);
+
+{$IFDEF JapaneseExt}
+  if (coIgnoreWidth in ACompareOptions) or (coIgnoreKana in ACompareOptions) then
+  begin
+    if coIgnoreWidth in ACompareOptions then
+    begin
+      SubStr := ToWide(LStr);
+      if SubStr <> LStr then
+        InternalAdd(ToUChar(@SubStr[1]));
+
+      SubStr := ToHalf(LStr);
+      if SubStr <> LStr then
+        InternalAdd(ToUChar(@SubStr[1]));
+    end;
+
+    if coIgnoreKana in ACompareOptions then
+    begin
+      SubStr := ToHiragana(LStr);
+      if SubStr <> LStr then
+        InternalAdd(ToUChar(@SubStr[1]));
+
+      SubStr := ToKatakana(LStr);
+      if SubStr <> LStr then
+        InternalAdd(ToUChar(@SubStr[1]));
+    end;
+  end;
+{$ENDIF JapaneseExt}
+
+  if coIgnoreCase in ACompareOptions then
+  begin
+    if not FIgnoreCase then
+      FIgnoreCase := True;
+    SubStr := ToFoldCase(LStr, coASCIIOnly in ACompareOptions);
+    InternalAdd(ToUChar(@SubStr[1]));
+  end
+  else
+    InternalAdd(ToUChar(@LStr[1]));
+end;
+
+procedure TRECharClassCode.Clear;
+begin
+  FCharRange.Clear;
+  FNegative := False;
+  FIgnoreCase := False;
+  FOptions := [];
+  SetLength(FMatchFuncArray, 0);
+  SetLength(FPosixClass, 0);
+  SetLength(FUnicodeProperty, 0);
+  InitCharMap(False);
+  ClearCharMap;
 end;
 
 procedure TRECharClassCode.ClearCharMap;
@@ -5939,14 +5576,12 @@ end;
 constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
   AOptions: TREOptions);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, AOptions);
   FCharRange := TRECharRangeList.Create;
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
-  FOptions := AOptions;
-  FSimpleClass := True;
+  FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
   SetLength(FMatchFuncArray, 0);
-  FASCIIAny := False;
   SetLength(FPosixClass, 0);
   SetLength(FUnicodeProperty, 0);
   InitCharMap(ANegative);
@@ -6008,8 +5643,8 @@ function TRECharClassCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 var
   Ch: UChar;
   FD: TUnicodeMultiChar;
-  LProperty: TRECharClassPropertyRec;
-  LPosixClass: TRECharClassPosixRec;
+  LProperty: TREPropertyCharSetRec;
+  LPosixClass: TREPosixCharSetRec;
   P, Prev: PRECharMapRec;
   Index: Integer;
 begin
@@ -6019,7 +5654,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if roIgnoreCase in FOptions then
+  if FIgnoreCase then
   begin
     if AStr^ < #128 then
     begin
@@ -6065,9 +5700,9 @@ begin
     for LPosixClass in FPosixClass do
     begin
       if not LPosixClass.IsNegative then
-        Result := IsPosixClassA(Ch, LPosixClass.Kind, roIgnoreCase in FOptions )
+        Result := IsPosixClassA(Ch, LPosixClass.Kind, FIgnoreCase)
       else
-        Result := not IsPosixClassA(Ch, LPosixClass.Kind, roIgnoreCase in FOptions );
+        Result := not IsPosixClassA(Ch, LPosixClass.Kind, FIgnoreCase);
 
       if FNegative then
         Result := not Result;
@@ -6094,7 +5729,7 @@ begin
   begin
     if not FHasUnicode then
     begin
-      Result := not Result;
+      Result := True;
       Exit;
     end;
 
@@ -6145,9 +5780,9 @@ begin
     for LPosixClass in FPosixClass do
     begin
       if not LPosixClass.IsNegative then
-        Result := IsPosixClassU(Ch, LPosixClass.Kind, roIgnoreCase in FOptions )
+        Result := IsPosixClassU(Ch, LPosixClass.Kind, FIgnoreCase)
       else
-        Result := not IsPosixClassU(Ch, LPosixClass.Kind, roIgnoreCase in FOptions );
+        Result := not IsPosixClassU(Ch, LPosixClass.Kind, FIgnoreCase);
 
       if FNegative then
         Result := not Result;
@@ -6171,6 +5806,13 @@ begin
     end;
 
   end;
+end;
+
+function TRECharClassCode.IsExists(AStr: PWideChar): Boolean;
+var
+  L: Integer;
+begin
+  Result := IsEqual(AStr, L);
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -6299,7 +5941,13 @@ begin
 
   Result := Result + ']';
 end;
+
 {$ENDIF} // SKREGEXP_DEBUG
+
+function TRECharClassCode.GetSimpleClass: Boolean;
+begin
+  Result := (FCharSetCount = 0) and (FCharRange.Count = 0);
+end;
 
 function TRECharClassCode.IsOverlap(ACode: TRECode): Boolean;
 var
@@ -6311,143 +5959,6 @@ begin
   begin
     if IsEqual((ACode as TRELiteralCode).FSubP, L) then
       Result := not Result;
-  end;
-end;
-
-function TRECharClassCode.MatchASCIIMap(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  Ch: UChar;
-begin
-  Result := False;
-  Len := 0;
-
-  if AStr^ < #128 then
-    Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
-
-  if FNegative then
-    Result := not Result;
-
-  if Result then
-    Len := 1;
-end;
-
-function TRECharClassCode.MatchCharSet(AStr: PWideChar;
-  var Len: Integer): Boolean;
-var
-  Ch: UChar;
-  FD: TUnicodeMultiChar;
-  LProperty: TRECharClassPropertyRec;
-  LPosixClass: TRECharClassPosixRec;
-  P, Prev: PRECharMapRec;
-  Index: Integer;
-begin
-  Result := False;
-  Len := 0;
-
-  if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  if AStr^ < #128 then
-  begin
-    Ch := UChar(AStr^);
-
-    if (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0 then
-    begin
-      Result := True;
-      Len := 1;
-      Exit;
-    end;
-
-    for LProperty in FUnicodeProperty do
-    begin
-      if not LProperty.IsNegative then
-        Result := IsUnicodeProperty(Ch, LProperty.Kind)
-      else
-        Result := not IsUnicodeProperty(Ch, LProperty.Kind);
-
-      if FNegative then
-        Result := not Result;
-
-      if Result then
-      begin
-        Len := 1;
-        Exit;
-      end;
-    end;
-  end
-  else
-  begin
-    Ch := ToUChar(AStr, Len);
-    if not FHasUnicode then
-    begin
-      Result := not Result;
-      Exit;
-    end;
-
-    for LPosixClass in FPosixClass do
-    begin
-      if not LPosixClass.IsNegative then
-        Result := IsPosixClassU(Ch, LPosixClass.Kind, roIgnoreCase in FOptions )
-      else
-        Result := not IsPosixClassU(Ch, LPosixClass.Kind, roIgnoreCase in FOptions );
-
-      if FNegative then
-        Result := not Result;
-
-      if Result then
-        Exit;
-    end;
-
-    for LProperty in FUnicodeProperty do
-    begin
-      if not LProperty.IsNegative then
-        Result := IsUnicodeProperty(Ch, LProperty.Kind)
-      else
-        Result := not IsUnicodeProperty(Ch, LProperty.Kind);
-
-      if FNegative then
-        Result := not Result;
-
-      if Result then
-        Exit;
-    end;
-  end;
-end;
-
-function TRECharClassCode.MatchMap(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  Ch: UChar;
-  Index: Integer;
-  P: PRECharMapRec;
-begin
-  Ch := ToUChar(AStr, Len);
-  if Ch < 128 then
-  begin
-    Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
-  end
-  else
-  begin
-    Result := FNegative;
-
-    if FHasUnicode then
-    begin
-      Index := Ord(Ch) mod CONST_CharMapMax;
-      P := FMap[Index];
-      if P <> nil then
-      begin
-        if P.Ch = Ch then
-          Exit;
-
-        P := P.Next;
-        while P <> nil do
-        begin
-          if P.Ch = Ch then
-            Exit;
-
-          P := P.Next;
-        end;
-      end;
-    end;
   end;
 end;
 
@@ -6518,8 +6029,7 @@ end;
 constructor TREBoundaryCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
+  inherited Create(ARegExp, AOptions);
   FNegative := ANegative;
   FIsASCII := GetASCIIMode(FOptions);
 end;
@@ -6671,9 +6181,8 @@ end;
 constructor TREReferenceCode.Create(ARegExp: TSkRegExp; AGroupIndex: Integer;
   AOptions: TREOptions);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, AOptions);
   FGroupIndex := AGroupIndex;
-  FOptions := AOptions;
   FCompareOptions := REOptionsToRECompareOptions(FOptions);
 end;
 
@@ -6729,10 +6238,9 @@ end;
 constructor TRENamedReferenceCode.Create(ARegExp: TSkRegExp;
   AGroupName: REString; AGroupIndex: Integer; AOptions: TREOptions);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, AOptions);
   FGroupName := AGroupName;
   FGroupIndex := AGroupIndex;
-  FOptions := AOptions;
   FCompareOptions := REOptionsToRECompareOptions(FOptions);
 end;
 
@@ -6806,12 +6314,6 @@ end;
 
 { TRELineHeadCode }
 
-constructor TRELineHeadCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
-begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
-end;
-
 function TRELineHeadCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Len := 0;
@@ -6856,12 +6358,6 @@ begin
 end;
 
 { TRELineTailCode }
-
-constructor TRELineTailCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
-begin
-  inherited Create(ARegExp);
-  FOptions := AOptions;
-end;
 
 function TRELineTailCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 var
@@ -7011,7 +6507,7 @@ end;
 constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
   AUnicodeProperty: TUnicodeProperty; ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FUniCodeProperty := AUnicodeProperty;
   FNegative := ANegative;
 end;
@@ -7091,12 +6587,13 @@ begin
       Result := True;
   end;
 end;
-function TREPropertyCode.Match(Ch: UChar): Boolean;
-begin
-  Result := IsUnicodeProperty(Ch, FUniCodeProperty);
-  if FNegative then
-    Result := not Result;
-end;
+
+//function TREPropertyCode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := IsUnicodeProperty(Ch, FUniCodeProperty);
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 {$ENDIF USE_UNICODE_PROPERTY}
 
@@ -7127,12 +6624,10 @@ end;
 constructor TREPosixCharClassCode.Create(ARegExp: TSkRegExp;
   APosixClass: TREPosixClassKind; AOptions: TREOptions; ANegative: Boolean);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, AOptions);
   FPosixClass := APosixClass;
-  FOptions := AOptions;
   FCompareOptions := REOptionsToRECompareOptions(FOptions);
   FNegative := ANegative;
-  FIsASCII := GetASCIIMode(FOptions)
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -7188,7 +6683,7 @@ function TREPosixCharClassCode.IsEqual(AStr: PWideChar;
 var
   Ch: UChar;
   L: Integer;
-  LFold: TUnicodeMultiChar;
+  FD: TUnicodeMultiChar;
 begin
   Result := False;
   Len := 0;
@@ -7196,32 +6691,25 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  ClearUnicodeMultiChar(LFold);
-
-  Ch := GetREChar(AStr, L, FCompareOptions, LFold);
-
-  if FIsASCII and (FPosixClass <> pckAny) then
+  if AStr^ < #128 then
   begin
-    Result := (Ch < 128) and
-      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
+    Result :=
+      IsPosixClassA(UChar(AStr^), FPosixClass, roIgnoreCase in FOptions);
+    Len := 1;
 {$IFDEF USE_UNICODE_PROPERTY}
   end
   else
   begin
-    Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
+    Result :=
+      IsPosixClassU(ToUChar(AStr, Len), FPosixClass, roIgnoreCase in FOptions);
 {$ENDIF USE_UNICODE_PROPERTY}
   end;
 
   if FNegative then
     Result := not Result;
 
-  if Result then
-  begin
-    if IsNoLeadChar(AStr^) then
-      Len := 1
-    else
-      Len := 2;
-  end;
+  if not Result then
+    Len := 0;
 end;
 
 function TREPosixCharClassCode.IsInclude(ACode: TRECode): Boolean;
@@ -7239,20 +6727,15 @@ begin
   begin
     if (ACode is TRELiteralCode) then
     begin
-      if FIsASCII then
-      begin
-        Result := IsPosixClassA(
-          ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-          FPosixClass, roIgnoreCase in FOptions);
 {$IFDEF USE_UNICODE_PROPERTY}
-      end
-      else
-      begin
-        Result := IsPosixClassU(
-          ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
-          FPosixClass, roIgnoreCase in FOptions);
+      Result := IsPosixClassU(
+        ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
+        FPosixClass, roIgnoreCase in FOptions);
+{$ELSE USE_UNICODE_PROPERTY}
+      Result := IsPosixClassA(
+        ToUChar(PWideChar((ACode as TRELiteralCode).FStrings)),
+        FPosixClass, roIgnoreCase in FOptions);
 {$ENDIF USE_UNICODE_PROPERTY}
-      end;
 
       if FNegative then
         Result := not Result;
@@ -7262,27 +6745,22 @@ begin
   end;
 end;
 
-function TREPosixCharClassCode.Match(Ch: UChar): Boolean;
-var
-  LFold: TUnicodeMultiChar;
-begin
-  ClearUnicodeMultiChar(LFold);
-
-  if FIsASCII and (FPosixClass <> pckAny) then
-  begin
-    Result := (Ch < 128) and
-      IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
-{$IFDEF USE_UNICODE_PROPERTY}
-  end
-  else
-  begin
-    Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
-{$ENDIF USE_UNICODE_PROPERTY}
-  end;
-
-  if FNegative then
-    Result := not Result;
-end;
+//function TREPosixCharClassCode.Match(Ch: UChar): Boolean;
+//var
+//  LFold: TUnicodeMultiChar;
+//begin
+//  ClearUnicodeMultiChar(LFold);
+//
+//{$IFDEF USE_UNICODE_PROPERTY}
+//  Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
+//{$ELSE USE_UNICODE_PROPERTY}
+//  Result := (Ch < 128) and
+//    IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
+//{$ENDIF USE_UNICODE_PROPERTY}
+//
+//  if FNegative then
+//    Result := not Result;
+//end;
 
 { TREGlobalPosCode }
 
@@ -7322,7 +6800,7 @@ end;
 constructor TREIfThenReferenceCode.Create(ARegExp: TSkRegExp;
   const AGroupIndex: Integer);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FGroupIndex := AGroupIndex;
 end;
 
@@ -7365,7 +6843,7 @@ end;
 constructor TREIfThenNamedReferenceCode.Create(ARegExp: TSkRegExp;
   const AGroupName: REString);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FGroupName := AGroupName;
 end;
 
@@ -7407,7 +6885,7 @@ end;
 constructor TREInSubReferenceCode.Create(ARegExp: TSkRegExp;
   const AGroupIndex: Integer);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FGroupIndex := AGroupIndex;
 end;
 
@@ -7455,7 +6933,7 @@ end;
 constructor TREInSubNameReferenceCode.Create(ARegExp: TSkRegExp;
   const AGroupName: REString);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FGroupName := AGroupName;
 end;
 
@@ -7500,7 +6978,7 @@ end;
 constructor TRECalloutCode.Create(ARegExp: TSkRegExp;
   const ACalloutNumber, APatternPosition, APatternLength: Integer);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FData.Version := 1;
   FData.CalloutNumber := ACalloutNumber;
   FData.CurrentPosition := 1;
@@ -7552,7 +7030,7 @@ end;
 constructor TREBinCode.Create(ARegExp: TSkRegExp; AOp: TREOperator;
   ALeft, ARight: TRECode; AMin, AMax: Integer);
 begin
-  inherited Create(ARegExp);
+  inherited Create(ARegExp, []);
   FOp := AOp;
   FLeft := ALeft;
   FRight := ARight;
@@ -10177,13 +9655,13 @@ begin
       end;
     tkTHead:
       begin
-        Result := TRETextHeadCode.Create(FRegExp);
+        Result := TRETextHeadCode.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
     tkTTail:
       begin
-        Result := TRETextTailCode.Create(FRegExp);
+        Result := TRETextTailCode.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
         if not FHasTailAnchor then
@@ -10191,7 +9669,7 @@ begin
       end;
     tkTTailEnd:
       begin
-        Result := TRETextEndCode.Create(FRegExp);
+        Result := TRETextEndCode.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
         if not FHasTailAnchor then
@@ -10273,7 +9751,7 @@ begin
       end;
     tkLineBreak:
       begin
-        Result := TRELineBreakCharCode.Create(FRegExp);
+        Result := TRELineBreakCharCode.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
@@ -10387,14 +9865,14 @@ begin
 {$IFDEF USE_UNICODE_PROPERTY}
     tkCombiningSequence:
       begin
-        Result := TRECombiningSequence.Create(FRegExp);
+        Result := TRECombiningSequence.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
 {$ENDIF USE_UNICODE_PROPERTY}
     tkGlobalPos:
       begin
-        Result := TREGlobalPosCode.Create(FRegExp);
+        Result := TREGlobalPosCode.Create(FRegExp, []);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
@@ -13585,7 +13063,7 @@ begin
   FBackTrackStack := TREBackTrackStack.Create(FRegExp);
   FOptimizeData := FRegExp.FOptimizeData;
   FLeadCode := TREOptimizeDataList.Create;
-  FLeadMap := TRECharMap.Create;
+  FLeadMap := TRECharClassCode.Create(ARegExp, False, []);
   FACSearch := TREACSearch.Create;
   IsLeadMatch := IsLeadAllMatch;
 
@@ -13600,16 +13078,36 @@ begin
 end;
 
 procedure TREMatchEngine.CreateLeadMap(NFACode: TRENFAState; var NoMap: Boolean);
+var
+  IsFirst, LIgnoreCase, LASCIIOnly: Boolean;
 
   procedure AddMap(Code: TRECode; var NoMap: Boolean);
   begin
+    if IsFirst then
+    begin
+      LIgnoreCase := roIgnoreCase in Code.FOptions;
+      LASCIIOnly := (roASCIIOnly in Code.FOptions) or (roASCIICharClass in Code.FOptions);
+
+      IsFirst := False;
+    end
+    else
+    begin
+      if (LIgnoreCase <> (roIgnoreCase in Code.FOptions)) or
+          (LASCIIOnly <> ((roASCIIOnly in Code.FOptions) or (roASCIICharClass in Code.FOptions))) then
+      begin
+        NoMap := True;
+        Exit;
+      end;
+    end;
+
     if Code is TRELiteralCode then
     begin
       FLeadMap.Add(ToUChar((Code as TRELiteralCode).FSubP), (Code as TRELiteralCode).FCompareOptions);
     end
-    else if (Code is TRECharClassCode) and (Code as TRECharClassCode).FSimpleClass then
+    else if (Code is TRECharClassCode) and (Code as TRECharClassCode).SimpleClass and
+        not (Code as TRECharClassCode).FNegative then
     begin
-      FLeadMap.Add((Code as TRECharClassCode).FASCIIMap, (Code as TRECharClassCode).FNegative)
+      FLeadMap.Add((Code as TRECharClassCode));
     end
     else
       NoMap := True;
@@ -13618,6 +13116,8 @@ procedure TREMatchEngine.CreateLeadMap(NFACode: TRENFAState; var NoMap: Boolean)
 var
   SubCode: TRENFAState;
 begin
+  IsFirst := True;
+
   while NFACode.Kind = nkGroupBegin do
   begin
     if NFACode.Next <> nil then
@@ -15564,7 +15064,7 @@ begin
         FLeadCharMode := lcmNone;
     end
     else
-      FLeadCharMode := lcmNone; //@@lcmLeadMap;
+      FLeadCharMode := lcmLeadMap;
   end;
 end;
 
@@ -16726,9 +16226,9 @@ begin
     else
       begin
 {$IFDEF USE_UNICODE_PROPERTY}
-        if IsCntrlU(ToUChar(Str, I)) then
+        if not IsPrintU(ToUChar(Str, I)) then
 {$ELSE USE_UNICODE_PROPERTY}
-        if IsCntrlA(ToUChar(Str, I)) then
+        if not IsPrintA(ToUChar(Str, I)) then
 {$ENDIF USE_UNICODE_PROPERTY}
         begin
           Result := Result + Format('\x{%.2x}', [Ord(Str[I])])

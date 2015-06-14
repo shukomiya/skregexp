@@ -413,7 +413,6 @@ type
   TUnicodeCharTypeRec = record
     Script, Category: Byte;
     FoldCase: PUnicodeMultiChar;
-    UnFoldCase: PUnicodeMultiChar;
   end;
 
 
