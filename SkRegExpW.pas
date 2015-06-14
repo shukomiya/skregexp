@@ -145,7 +145,7 @@ type
     pckWord, pckAny, pckAssigned);
   TREPosixClassKinds = set of TREPosixClassKind;
 
-  TRELineBreakKind = (lbAnyCRLF, lbLF, lbCR, lCRLF, lbAny);
+  TRELineBreakKind = (lbAnyCRLF, lbLF, lbCR, lbCRLF, lbAny);
 
   TRETextPosRec = record
     Min, Max: Integer;
@@ -199,6 +199,7 @@ type
     FIsHead: Boolean;
     FCode: TRECode;
     FSourceString: REString;
+    FSourceIndex: Integer;
   public
     constructor Create(AParent: TRETrieNode; AWChar: UChar);
     destructor Destroy; override;
@@ -210,6 +211,7 @@ type
     property Accepted: Boolean read FAccepted write FAccepted;
     property Options: TRECompareOptions read FOptions write FOptions;
     property SourceString: REString read FSourceString write FSourceString;
+    property SourceIndex: Integer read FSourceIndex write FSourceIndex;
     property IsHead: Boolean read FIsHead write FIsHead;
     property Code: TRECode read FCode write FCode;
   end;
@@ -238,9 +240,10 @@ type
     property Options: TRECompareOptions read FOptions write FOptions;
   end;
 
-  TREACSearch = class
+  TRETrieSearch = class
   private
     FRoot: TRETrieNode;
+    FACCompiled: Boolean;
     FCompiled: Boolean;
     FStartP: PWideChar;
     FEndP: PWideChar;
@@ -248,30 +251,48 @@ type
     FOptions: TRECompareOptions;
     FSkipP: PWideChar;
     FCodeList: TObjectList;
+    FCharLength: TRETextPosRec;
+    FMatchEndPList: array of PWideChar;
+    FMatchCount: Integer;
+    FLastStartP: PWideChar;
+    FStrCount: Integer;
     function GetMatchString: REString;
     function GetMatchLength: Integer;
   protected
-    procedure MakeFailure(ANode: TRETrieNode);
+    function InternalAdd(const Str: REString; const SourceIndex: Integer;
+      AOptions: TRECompareOptions): TRETrieNode;
+    procedure ClearMatchList;
+    function GetLastMatchEndP: PWideChar;
     function Go(ANode: TRETrieNode; Ch: UChar): TRETrieNode;
-    function InternalAdd(const S: REString; AOptions: TRECompareOptions): TRETrieNode;
+    procedure MakeFailure(ANode: TRETrieNode);
     function MatchCore(AStr: PWideChar): Boolean;
   public
     constructor Create;
     destructor Destroy; override;
-    procedure Add(const S: REString; AOptions: TRECompareOptions = []); overload;
     procedure Add(ACode: TRECode); overload;
+    procedure Add(const S: REString;
+      AOptions: TRECompareOptions = []); overload;
     procedure Clear;
+    procedure ACCompile;
     procedure Compile;
-    function Match(AStr: PWideChar): Boolean;
+    function Find(AStr: PWideChar): Boolean;
     function Exec(AStr: PWideChar; ATextLen: Integer): Boolean;
     function ExecNext: Boolean;
+    function GetPrefix: REString;
+    function Match(AStr: PWideChar): Boolean;
+{$IFDEF SKREGEXP_DEBUG}
+    function DebugOutput: REString;
+{$ENDIF SKREGEXP_DEBUG}
     property Root: TRETrieNode read FRoot;
     property MatchString: REString read GetMatchString;
     property MatchLength: Integer read GetMatchLength;
+    property ACCompiled: Boolean read FACCompiled;
     property Compiled: Boolean read FCompiled;
     property StartP: PWideChar read FStartP;
     property EndP: PWideChar read FEndP;
     property SkipP: PWideChar read FSkipP write FSkipP;
+    property CharLength: TRETextPosRec read FCharLength write FCharLength;
+    property MatchCount: Integer read FMatchCount;
   end;
 
   TRECharMapRec = record
@@ -1393,7 +1414,7 @@ type
     FAnchorStrings: TRECode;
     FLeadCharMode: TRELeadCharMode;
     FLeadMap: TRECharClassCode;
-    FACSearch: TREACSearch;
+    FACSearch: TRETrieSearch;
     FLeadCharOffset: TRETextPosRec;
     FAnchorOffset: TRETextPosRec;
     FSkipP: PWideChar;
@@ -3750,62 +3771,88 @@ begin
   Result := FList[Index]
 end;
 
-{ TREACSearch }
+{ TRETrieSearch }
 
-procedure TREACSearch.Add(ACode: TRECode);
+procedure TRETrieSearch.ACCompile;
 begin
-  FCodeList.Add(ACode);
+  if not FCompiled then
+    Compile;
+  if not FACCompiled then
+  begin
+    MakeFailure(FRoot);
+    FACCompiled := True;
+  end;
+end;
+
+procedure TRETrieSearch.Add(ACode: TRECode);
+begin
+  FCodeList.Insert(0, ACode);
   if ACode is TRELiteralCode then
+  begin
     FOptions := FOptions +
       (ACode as TRELiteralCode).FCompareOptions;
+
+    if FCharLength.Min = 0 then
+      FCharLength.Min := System.Length((ACode as TRELiteralCode).FStrings)
+    else
+      FCharLength.Min := Min(FCharLength.Min, System.Length((ACode as TRELiteralCode).FStrings));
+
+    FCharLength.Max := Max(FCharLength.Max, System.Length((ACode as TRELiteralCode).FStrings));
+  end;
 end;
 
-procedure TREACSearch.Add(const S: REString; AOptions: TRECompareOptions);
-var
-  T: REString;
+procedure TRETrieSearch.Add(const S: REString;
+  AOptions: TRECompareOptions);
 begin
-  T := S;
-  if coIgnoreCase in AOptions then
-    T := ToFoldCase(T, coASCIIOnly in AOptions);
-{$IFDEF JapaneseExt}
-  if coIgnoreWidth in AOptions then
-    T := ToWide(T);
-  if coIgnoreKana in AOptions then
-    T := ToKatakana(T);
-{$ENDIF JapaneseExt}
-
-  InternalAdd(T, AOptions);
+  InternalAdd(S, FStrCount, AOptions);
+  Inc(FStrCount);
 end;
 
-procedure TREACSearch.Clear;
+procedure TRETrieSearch.Clear;
 begin
+  SetLength(FMatchEndPList, 0);
   FCodeList.Clear;
   FRoot.Clear;
   FOptions := [];
+  FACCompiled := False;
   FCompiled := False;
+  FStrCount := 0;
   FStartP := nil;
   FEndP := nil;
 end;
 
-procedure TREACSearch.Compile;
+procedure TRETrieSearch.ClearMatchList;
+var
+  I: Integer;
+begin
+  for I := 0 to High(FMatchEndPList) do
+    FMatchEndPList[I] := nil;
+end;
+
+procedure TRETrieSearch.Compile;
 var
   I: Integer;
 begin
   if not Compiled then
   begin
-    for I := 0 to FCodeList.Count - 1 do
+    if FCodeList.Count > 0 then
     begin
-      if FCodeList[I] is TRELiteralCode then
-        Add((FCodeList[I] as TRELiteralCode).FStrings,
-          (FCodeList[I] as TRELiteralCode).FCompareOptions)
-    end;
-
-    MakeFailure(FRoot);
+      for I := 0 to FCodeList.Count - 1 do
+      begin
+        if FCodeList[I] is TRELiteralCode then
+          InternalAdd((FCodeList[I] as TRELiteralCode).FStrings,
+            I,
+            (FCodeList[I] as TRELiteralCode).FCompareOptions)
+      end;
+      SetLength(FMatchEndPList, FCodeList.Count);
+    end
+    else
+      SetLength(FMatchEndPList, FStrCount);
     FCompiled := True;
   end;
 end;
 
-constructor TREACSearch.Create;
+constructor TRETrieSearch.Create;
 begin
   inherited Create;
   FRoot := TRETrieNode.Create(nil, 0);
@@ -3813,7 +3860,35 @@ begin
   FCodeList.OwnsObjects := False;
 end;
 
-destructor TREACSearch.Destroy;
+{$IFDEF SKREGEXP_DEBUG}
+function TRETrieSearch.DebugOutput: REString;
+var
+  LCode: Pointer;
+begin
+  for LCode in FCodeList do
+  begin
+    Result := Result + ', ';
+    if TRELiteralCode(LCode).FCompareOptions <> [] then
+    begin
+      Result := Result + '(?';
+      if coIgnoreCase in TRELiteralCode(LCode).FCompareOptions then
+        Result := Result + 'i';
+      if coIgnoreWidth in TRELiteralCode(LCode).FCompareOptions then
+        Result := Result + 'w';
+      if coIgnoreKana in TRELiteralCode(LCode).FCompareOptions then
+        Result := Result + 'k';
+      if coASCIIOnly in TRELiteralCode(LCode).FCompareOptions then
+        Result := Result + 'a';
+      Result := Result + ')';
+    end;
+    Result := Result + TRELiteralCode(LCode).FStrings;
+  end;
+
+  System.Delete(Result, 1, 2);
+end;
+{$ENDIF SKREGEXP_DEBUG}
+
+destructor TRETrieSearch.Destroy;
 begin
   Clear;
   FCodeList.Free;
@@ -3821,23 +3896,22 @@ begin
   inherited;
 end;
 
-function TREACSearch.Exec(AStr: PWideChar; ATextLen: Integer): Boolean;
+function TRETrieSearch.Exec(AStr: PWideChar; ATextLen: Integer): Boolean;
 begin
-  if not Compiled then
-    Compile;
+  if not ACCompiled then
+    ACCompile;
 
   FMatchTopP := AStr;
   FMatchEndP := AStr + ATextLen;
 
-  Result := Match(AStr);
+  Result := MatchCore(AStr);
 end;
 
-
-function TREACSearch.ExecNext: Boolean;
+function TRETrieSearch.ExecNext: Boolean;
 var
   P: PWideChar;
 begin
-  Assert(FStartP <> nil, 'bug: Not call TREACSearch.Exec function.');
+  Assert(FStartP <> nil, 'bug: Not call TRETrieSearch.Exec function.');
 
   if FSkipP <> nil then
   begin
@@ -3847,13 +3921,87 @@ begin
   else
   begin
     P := FStartP;
-    CharNext(P);
+    if IsLeadChar(P^) then
+      Inc(P);
+    Inc(P);
   end;
 
-  Result := Match(P);
+  Result := MatchCore(P);
 end;
 
-function TREACSearch.Go(ANode: TRETrieNode; Ch: UChar): TRETrieNode;
+function TRETrieSearch.InternalAdd(const Str: REString;
+  const SourceIndex: Integer; AOptions: TRECompareOptions): TRETrieNode;
+var
+  S: REString;
+  I, L, Len, LIndex: Integer;
+  Node, NewNode: TRETrieNode;
+  LFold: TUnicodeMultiChar;
+  Ch: UChar;
+begin
+  S := Str;
+
+  if coIgnoreCase in AOptions then
+    S := ToFoldCase(S, coASCIIOnly in AOptions);
+{$IFDEF JapaneseExt}
+  if coIgnoreWidth in AOptions then
+    S := ToWide(S);
+  if coIgnoreKana in AOptions then
+    S := ToKatakana(S);
+{$ENDIF JapaneseExt}
+
+  Node := FRoot;
+  Node.Options := FOptions;
+
+  I := 1;
+  L := Length(S);
+
+  while I <= L do
+  begin
+    ClearUnicodeMultiChar(LFold);
+    Ch := GetREChar(@S[I], Len, Node.Options, LFold);
+    LIndex := Node.Children.Find(Ch);
+    if LIndex = -1 then
+    begin
+      NewNode := TRETrieNode.Create(Node, Ch);
+      Node.Options := FOptions;
+      Node.Children.Add(NewNode);
+      Node := NewNode;
+    end
+    else
+      Node := Node.Children[LIndex];
+
+    if I = 1 then
+      Node.IsHead := True;
+    Inc(I, Len);
+  end;
+  Node.Accepted := True;
+  Node.Options := AOptions;
+  Node.SourceString := S;
+  Node.SourceIndex := SourceIndex;
+  Result := Node;
+end;
+
+function TRETrieSearch.GetMatchString: REString;
+begin
+  SetString(Result, FStartP, FEndP - FStartP);
+end;
+
+function TRETrieSearch.GetPrefix: REString;
+var
+  Node: TRETrieNode;
+begin
+  Result := '';
+
+  Node := FRoot;
+
+  while (Node.Children.Count = 1) and not Node.Accepted do
+  begin
+    Result := Result + UCharToString(Node.Children[0].WChar);
+    Node := Node.Children[0];
+  end;
+end;
+
+function TRETrieSearch.Go(ANode: TRETrieNode; Ch: UChar): TRETrieNode;
 var
   Index: Integer;
 begin
@@ -3866,51 +4014,28 @@ begin
     Result := ANode.Children[Index];
 end;
 
-function TREACSearch.InternalAdd(const S: REString;
-  AOptions: TRECompareOptions): TRETrieNode;
-var
-  I, L, Len, Index: Integer;
-  Node, NewNode: TRETrieNode;
-  LFold: TUnicodeMultiChar;
-  Ch: UChar;
+function TRETrieSearch.Find(AStr: PWideChar): Boolean;
 begin
-  Node := FRoot;
-  Node.Options := FOptions;
+  Result := False;
+  FStartP := nil;
+  FEndP := nil;
+  FMatchCount := 0;
+  ClearMatchList;
 
-  I := 1;
-  L := Length(S);
-
-  while I <= L do
+  while AStr < FMatchEndP do
   begin
-    ClearUnicodeMultiChar(LFold);
-    Ch := GetREChar(@S[I], Len, Node.Options, LFold);
-    Index := Node.Children.Find(Ch);
-    if Index = -1 then
+    if Match(AStr) then
     begin
-      NewNode := TRETrieNode.Create(Node, Ch);
-      Node.Options := FOptions;
-      Node.Children.Add(NewNode);
-      Node := NewNode;
-    end
-    else
-      Node := Node.Children[Index];
-
-    if I = 1 then
-      Node.IsHead := True;
-    Inc(I, Len);
+      Result := True;
+      Exit;
+    end;
+    if IsLeadChar(AStr^) then
+      Inc(AStr);
+    Inc(AStr);
   end;
-  Node.Accepted := True;
-  Node.Options := AOptions;
-  Node.SourceString := S;
-  Result := Node;
 end;
 
-function TREACSearch.GetMatchString: REString;
-begin
-  SetString(Result, FStartP, FEndP - FStartP);
-end;
-
-procedure TREACSearch.MakeFailure(ANode: TRETrieNode);
+procedure TRETrieSearch.MakeFailure(ANode: TRETrieNode);
 
   function GetFailure(ANode: TRETrieNode; const Ch: UChar): TRETrieNode;
   var
@@ -3945,35 +4070,96 @@ begin
   end;
 end;
 
-function TREACSearch.Match(AStr: PWideChar): Boolean;
-begin
-  Result := False;
-  FStartP := nil;
-  FEndP := nil;
-  while AStr < FMatchEndP do
-  begin
-    if MatchCore(AStr) then
-    begin
-      Result := True;
-      Exit;
-    end;
-    CharNext(AStr);
-  end;
-end;
-
-function TREACSearch.MatchCore(AStr: PWideChar): Boolean;
+function TRETrieSearch.Match(AStr: PWideChar): Boolean;
 var
-  L, K, Index: Integer;
+  Index, L, K: Integer;
   Node: TRETrieNode;
   Ch: UChar;
   LFold: TUnicodeMultiChar;
 begin
-  ClearUnicodeMultiChar(LFold);
-
   FStartP := AStr;
   FEndP := nil;
-  Node := FRoot;
 
+  if (FMatchCount > 0) and (FStartP = FLastStartP) then
+  begin
+    FEndP := GetLastMatchEndP;
+    Dec(FMatchCount);
+  end
+  else
+  begin
+    ClearMatchList;
+    ClearUnicodeMultiChar(LFold);
+
+    FLastStartP := FStartP;
+    Node := FRoot;
+    FMatchCount := 0;
+
+    while AStr < FMatchEndP do
+    begin
+      Ch := GetREChar(AStr, L, Node.Options, LFold);
+
+      Index := Node.Children.Find(Ch);
+
+      if Index <> -1 then
+      begin
+        Node := Node.Children[Index];
+
+        if (FMatchCount > 0) and Node.IsHead then
+          Break;
+
+        Inc(AStr, L);
+
+        if Node.Accepted then
+        begin
+          if FRoot.Options <> [] then
+          begin
+            if RECompareString(FStartP,
+                PWideChar(Node.SourceString),
+                System.Length(Node.SourceString), K, Node.Options) = 0 then
+            begin
+              FMatchEndPList[Node.SourceIndex] := AStr;
+              Inc(FMatchCount);
+            end;
+          end
+          else
+          begin
+            FMatchEndPList[Node.SourceIndex] := AStr;
+            Inc(FMatchCount);
+          end;
+        end;
+      end
+      else
+        Break;
+    end;
+
+    if FMatchCount > 0 then
+    begin
+      FEndP := GetLastMatchEndP;
+      Dec(FMatchCount);
+    end;
+  end;
+  Result := FEndP <> nil;
+end;
+
+function TRETrieSearch.MatchCore(AStr: PWideChar): Boolean;
+label
+  ReStart;
+var
+  Index, L, K: Integer;
+  Node: TRETrieNode;
+  Ch: UChar;
+  LFold: TUnicodeMultiChar;
+  NextP: PWideChar;
+begin
+  ClearUnicodeMultiChar(LFold);
+
+  FStartP := nil;
+  FEndP := nil;
+  NextP := nil;
+  Node := FRoot;
+  FMatchCount := 0;
+
+ReStart:
   while AStr < FMatchEndP do
   begin
     Ch := GetREChar(AStr, L, Node.Options, LFold);
@@ -3987,12 +4173,18 @@ begin
         Break;
     end;
 
-    if Node <> nil then
+    if Index <> -1 then
     begin
-      if (FEndP <> nil) and Node.IsHead then
-        Break;
+      if (FStartP <> nil) and (Node.IsHead) and (NextP = nil) then
+        NextP := AStr;
 
       Node := Node.Children[Index];
+
+      if (FMatchCount > 0) and Node.IsHead then
+        Break;
+
+      if FStartP = nil then
+        FStartP := AStr;
 
       Inc(AStr, L);
 
@@ -4004,21 +4196,60 @@ begin
               PWideChar(Node.SourceString),
               System.Length(Node.SourceString), K, Node.Options) = 0 then
           begin
-            FEndP := AStr;
-            Break;
+            FMatchEndPList[Node.SourceIndex] := AStr;
+            Inc(FMatchCount);
           end;
         end
         else
-          FEndP := AStr;
+        begin
+          FMatchEndPList[Node.SourceIndex] := AStr;
+          Inc(FMatchCount);
+        end;
       end;
     end
     else
-      Break;
+    begin
+      if (FMatchCount > 0) then
+        Break;
+
+//      if NextP <> nil then
+//        AStr := NextP;
+
+      CharNext(AStr, L);
+      Node := FRoot;
+      NextP := nil;
+      FStartP := nil;
+    end;
   end;
+
+  if (FMatchCount = 0) and (NextP <> nil) then
+  begin
+    AStr := NextP;
+    FStartP := nil;
+    Node := FRoot;
+    NextP := nil;
+    goto ReStart;
+  end;
+  if FMatchCount > 0 then
+    FEndP := GetLastMatchEndP;
   Result := FEndP <> nil;
 end;
 
-function TREACSearch.GetMatchLength: Integer;
+function TRETrieSearch.GetLastMatchEndP: PWideChar;
+var
+  I: Integer;
+begin
+  for I := 0 to High(FMatchEndPList) do
+    if FMatchEndPList[I] <> nil then
+    begin
+      Result := FMatchEndPList[I];
+      FMatchEndPList[I] := nil;
+      Exit;
+    end;
+  Result := nil;
+end;
+
+function TRETrieSearch.GetMatchLength: Integer;
 begin
   Result := FEndP - FStartP;
 end;
@@ -6327,7 +6558,7 @@ begin
     begin
       if AStr = FRegExp.FMatchEndP then
         Exit;
-      if FRegExp.LineBreakKind = lCRLF then
+      if FRegExp.LineBreakKind = lbCRLF then
         Dec(AStr, 2)
       else
         Dec(AStr);
@@ -7520,7 +7751,7 @@ begin
         end
         else if REStrLComp(FP, '(*CRLF)', 7) = 0 then
         begin
-          FRegExp.LineBreakKind := lCRLF;
+          FRegExp.LineBreakKind := lbCRLF;
           CharNext(FP, 7);
         end
         else if REStrLComp(FP, '(*ANYCRLF)', 10) = 0 then
@@ -13064,7 +13295,7 @@ begin
   FOptimizeData := FRegExp.FOptimizeData;
   FLeadCode := TREOptimizeDataList.Create;
   FLeadMap := TRECharClassCode.Create(ARegExp, False, []);
-  FACSearch := TREACSearch.Create;
+  FACSearch := TRETrieSearch.Create;
   IsLeadMatch := IsLeadAllMatch;
 
   FLeadCharMode := lcmNone;
@@ -16297,7 +16528,7 @@ begin
         IsLineBreak := IsLF;
       lbCR:
         IsLineBreak := IsCR;
-      lCRLF:
+      lbCRLF:
         IsLineBreak := IsCRLF;
       lbAnyCRLF:
         IsLineBreak := IsAnyCRLF;
