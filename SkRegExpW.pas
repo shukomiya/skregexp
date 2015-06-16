@@ -1224,12 +1224,14 @@ type
     FStartPBuf: PWideChar;
     FEndP: PWideChar;
     FSuccess: Boolean;
+    FAlwaysSuccess: Boolean;
     function GetIndex: Integer;
     function GetLength: Integer;
     function GetStrings: REString;
     function GetSubExpression: REString;
     procedure SetEndP(const Value: PWideChar);
     procedure SetStartP(const Value: PWideChar);
+    procedure SetAlwaysSuccess(const Value: Boolean);
   protected
     procedure Clear;
     property GroupBegin: TRENFAState read FGroupBegin write FGroupBegin;
@@ -1251,6 +1253,7 @@ type
     property SubExpression: REString read GetSubExpression;
     property JoinMatch: Boolean read FJoinMatch;
     property CharLength: TRETextPosRec read FCharLength write FCharLength;
+    property AlwaysSuccess: Boolean read FAlwaysSuccess write SetAlwaysSuccess;
   end;
 
   TGroupCollectionEnumerator = class
@@ -1442,6 +1445,8 @@ type
       Stack: TREBackTrackStack; var AStr: PWideChar; AMode: TREMatchMode): Boolean;
     function MatchSpecial(var EntryCode: TRENFAState;const EndCode: TRENFAState;
       var AStr: PWideChar): Boolean; inline;
+    function MatchGoSub(var EntryCode: TRENFAState;const EndCode: TRENFAState;
+      Stack: TREBackTrackStack; var AStr: PWideChar): Boolean; inline;
 
     procedure OptimizeLoop;
 
@@ -12373,6 +12378,20 @@ begin
   FSuccess := False;
 end;
 
+procedure TGroup.SetAlwaysSuccess(const Value: Boolean);
+begin
+  if FAlwaysSuccess <> Value then
+  begin
+    FAlwaysSuccess := Value;
+    if FAlwaysSuccess then
+    begin
+      FSuccess := True;
+      if FEndP = nil then
+        SetEndP(FStartPBuf);
+    end;
+  end;
+end;
+
 procedure TGroup.SetEndP(const Value: PWideChar);
 begin
   if (FStartPBuf <> nil) and (not FSuccess) then
@@ -13942,6 +13961,13 @@ begin
     FRegExp.FLastRegErrorIndex := FRegExp.FLastRegMarkIndex;
 end;
 
+function TREMatchEngine.MatchGoSub(var EntryCode: TRENFAState;
+  const EndCode: TRENFAState; Stack: TREBackTrackStack;
+  var AStr: PWideChar): Boolean;
+begin
+  Result := MatchPrim(EntryCode, EndCode, Stack, AStr, mmSpecial);
+end;
+
 function TREMatchEngine.MatchLoop(EntryCode: TRENFAState;
   const EndCode: TRENFAState; Stack: TREBackTrackStack;
   var AStr: PWideChar): Boolean;
@@ -13957,7 +13983,7 @@ label
 var
   LStackIndex: Integer;
   I, Len, LMin, LMax, Index, BaseIndex, LLoopIndex: Integer;
-  EntryCode, NextCode, EndCode, SubCode, LoopCode, BranchCode: TRENFAState;
+  EntryCode, ExitCode, NextCode, EndCode, SubCode, LoopCode, BranchCode: TRENFAState;
   LMatchKind: TRELoopKind;
   SubP, BufP, SaveP:PWideChar;
   IsMatched, IsLoopMatched: Boolean;
@@ -14036,7 +14062,15 @@ begin
 {$IFDEF SKREGEXP_DEBUG}
       if FRegExp.FShowMatchProcess then
       begin
-        MatchProcessAdd(NFACode, AStr, FRegExp.FSubStack.Index);
+        if FRegExp.FHasGoSub and (FSubStack.Count > 0) and
+              (FSubStack[FSubStack.Count - 1].EndCode = NFACode) and
+              (NFACode.Kind = nkGroupEnd) then
+        begin
+          FRegExp.FMatchProcess.Add(Format(#0009'Matched GOSUB [NestLevel: %d]',
+            [FSubStack.Index + 1]));
+        end
+        else
+          MatchProcessAdd(NFACode, AStr, FRegExp.FSubStack.Index);
       end;
 {$ENDIF}
       case NFACode.Kind of
@@ -14257,11 +14291,11 @@ begin
 
             // ループの終了を登録
             EndCode := FStateList[NFACode.ExtendTo];
-            NFACode := FStateList[NFACode.TransitTo];
+            ExitCode := FStateList[NFACode.TransitTo];
             // ループの次を登録
-            NextCode := FStateList[NFACode.TransitTo];
+            NextCode := FStateList[ExitCode.TransitTo];
             // ループの入口を登録
-            EntryCode := NFACode.Next;
+            EntryCode := ExitCode.Next;
 
             if (NextCode.Kind = nkLoopEnd) then
               BranchCode := GetBranchCode(NextCode, LoopCode);
@@ -14613,21 +14647,9 @@ begin
           end;
         nkGroupEnd:
           begin
-            FGroups[NFACode.GroupIndex].EndP := AStr;
-{$IFDEF SKREGEXP_DEBUG}
-            if FRegExp.FShowMatchProcess and FRegExp.ShowCaptureHistory then
-              FRegExp.FMatchProcess.Add(Format(#0009#0009'Cap%d:"%s" [Index:%d, Length:%d]',
-                [NFACode.GroupIndex, FRegExp.EncodeEscape(FGroups[NFACode.GroupIndex].Strings),
-                FGroups[NFACode.GroupIndex].Index, FGroups[NFACode.GroupIndex].Length]));
-{$ENDIF SKREGEXP_DEBUG}
             if FRegExp.FHasGoSub and (FSubStack.Count > 0) and
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
-{$IFDEF SKREGEXP_DEBUG}
-              if FRegExp.FShowMatchProcess then
-                FRegExp.FMatchProcess.Add(Format(#0009#0009'NestLevel: %d',
-                  [FSubStack.Index + 1]));
-{$ENDIF SKREGEXP_DEBUG}
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
               FRegExp.FGroupStack.Pop(FGroups);
               FLoopState.Pop;
@@ -14635,6 +14657,13 @@ begin
             end
             else
             begin
+{$IFDEF SKREGEXP_DEBUG}
+            if FRegExp.FShowMatchProcess and FRegExp.ShowCaptureHistory then
+              FRegExp.FMatchProcess.Add(Format(#0009#0009'Cap%d:"%s" [Index:%d, Length:%d]',
+                [NFACode.GroupIndex, FRegExp.EncodeEscape(FGroups[NFACode.GroupIndex].Strings),
+                FGroups[NFACode.GroupIndex].Index, FGroups[NFACode.GroupIndex].Length]));
+{$ENDIF SKREGEXP_DEBUG}
+              FGroups[NFACode.GroupIndex].EndP := AStr;
               NFACode := FStateList[NFACode.TransitTo];
             end;
           end;
@@ -14669,6 +14698,7 @@ begin
               NextCode := FStateList[NFACode.TransitTo];
 
               EntryCode := FGroups[Index].GroupBegin;
+              EntryCode := FStateList[EntryCode.TransitTo];
               EndCode := FGroups[Index].GroupEnd;
 
               Stack.Push(nil, nil, False);
@@ -15008,6 +15038,7 @@ begin
   FRegExp.FMatchProcess.Add(Format('%3d %s | %2d: %s[NestLevel:%d]',
     [CurrentPosition, S, NFACode.Index, NFACode.GetString, Level + 1]));
 end;
+
 {$ENDIF SKREGEXP_DEBUG}
 
 procedure TREMatchEngine.Optimize;
