@@ -150,6 +150,7 @@ resourcestring
 {$IFDEF SKREGEXP_DEBUG}
   { for debug }
   sLiteral                            = 'EXACT%s <%s> ';
+  sTrie                               = 'TRIE [%s] ';
   sAnyChar                            = 'ANY ';
   sWordChar                           = 'WORD ';
   sNegativeWordChar                   = 'NWORD ';
