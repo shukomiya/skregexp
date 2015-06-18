@@ -48,6 +48,7 @@ uses
   Classes,
   Contnrs,
 {$IFDEF SKREGEXP_DEBUG}
+  Comctrls,
   StrUtils,
 {$ENDIF SKREGEXP_DEBUG}
 {$IFNDEF UNICODE}
@@ -514,12 +515,12 @@ type
 {$ENDIF}
   end;
 
-  TRECharRange = record
+  TRECharRangeRec = record
     StartWChar, LastWChar: UChar;
   end;
-  PRECharRange = ^TRECharRange;
+  PRECharRange = ^TRECharRangeRec;
 
-  TRECharRangeList = class
+  TRECharRang = class
   private
     FList: TList;
     FCurIndex: Integer;
@@ -531,6 +532,8 @@ type
     function Compare(Ch: UChar): Integer;
     procedure Clear;
     function Count: Integer; inline;
+    function IsMatch(Ch: UChar): Boolean;
+
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString;
 {$ENDIF}
@@ -560,7 +563,7 @@ type
     FCharSetCount: Integer;
     FIgnoreCase: Boolean;
     FASCIIOnly: Boolean;
-    FCharRange: TRECharRangeList;
+    FCharRange: TRECharRang;
     FHasRange: Boolean;
 //    FMatchFuncArray: TRECharClassMatchFuncArray;
     FPosixClass: TREPosixCharSetArray;
@@ -1679,7 +1682,7 @@ type
     class function EscapeRegExChars(const S: REString): REString;
 
 {$IFDEF SKREGEXP_DEBUG}
-//    procedure DumpParse(ADest: TStrings);
+    procedure DumpParse(TreeView: TTreeView);
     procedure DumpNFA(ADest: TStrings);
     function DumpLeadCode: REString;
     function DumpMatchProcess: REString;
@@ -5469,7 +5472,7 @@ end;
 
 { TRECharRangeList }
 
-function TRECharRangeList.Add(AStartWChar, ALastWChar: UChar): Integer;
+function TRECharRang.Add(AStartWChar, ALastWChar: UChar): Integer;
 var
   Item: PRECharRange;
   LStartCmp, LLastCmp: Integer;
@@ -5511,7 +5514,7 @@ begin
     Result := -1;
 end;
 
-procedure TRECharRangeList.Clear;
+procedure TRECharRang.Clear;
 var
   I: Integer;
   P: PRECharRange;
@@ -5526,13 +5529,13 @@ begin
   FList.Clear;
 end;
 
-function TRECharRangeList.Get(Index: Integer): PRECharRange;
+function TRECharRang.Get(Index: Integer): PRECharRange;
 begin
   Result := FList[Index];
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
-function TRECharRangeList.GetDebugStr: REString;
+function TRECharRang.GetDebugStr: REString;
 var
   P: PRECharRange;
   I: Integer;
@@ -5548,10 +5551,35 @@ begin
         UCharToString(P.LastWChar);
   end;
 end;
+
 {$ENDIF SKREGEXP_DEBUG}
 
+function TRECharRang.IsMatch(Ch: UChar): Boolean;
+var
+  ALeft, ARight, AMid: Integer;
+  P: PRECharRange;
+begin
+  Result := False;
+  ALeft := 0;
+  ARight := FList.Count - 1;
 
-function TRECharRangeList.Compare(Ch: UChar): Integer;
+  while (ALeft <= ARight) do
+  begin
+    AMid := (ALeft + ARight) shr 1;
+    P := FList[AMid];
+    if (Ch >= P.StartWChar) and (Ch <= P.LastWChar) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    if P.LastWChar > Ch then
+      ARight := AMid - 1
+    else
+      ALeft := AMid + 1;
+  end;
+end;
+
+function TRECharRang.Compare(Ch: UChar): Integer;
 var
   I: Integer;
 begin
@@ -5584,19 +5612,19 @@ begin
   FCurIndex := I;
 end;
 
-function TRECharRangeList.Count: Integer;
+function TRECharRang.Count: Integer;
 begin
   Result := FList.Count;
 end;
 
-constructor TRECharRangeList.Create;
+constructor TRECharRang.Create;
 begin
   inherited;
   FList := TList.Create;
   FCurIndex := -1;
 end;
 
-destructor TRECharRangeList.Destroy;
+destructor TRECharRang.Destroy;
 begin
   Clear;
   FList.Free;
@@ -5989,7 +6017,7 @@ constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
   AOptions: TREOptions);
 begin
   inherited Create(ARegExp, AOptions);
-  FCharRange := TRECharRangeList.Create;
+  FCharRange := TRECharRang.Create;
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
@@ -6223,9 +6251,9 @@ begin
     if FCharRange.Count > 0 then
     begin
       if not FNegative then
-        Result := FCharRange.Compare(Ch) = 0
+        Result := FCharRange.IsMatch(Ch)
       else
-        Result := FCharRange.Compare(Ch) <> 0;
+        Result := not FCharRange.IsMatch(Ch);
 
       if Result then
         Exit;
@@ -6407,12 +6435,14 @@ function TRECharClassCode.IsOverlap(ACode: TRECode): Boolean;
 var
   L: Integer;
 begin
-  Result := FNegative;
+  Result := True;
 
   if ACode is TRELiteralCode then
   begin
     if IsEqual((ACode as TRELiteralCode).FSubP, L) then
-      Result := not Result;
+      Result := True
+    else
+      Result := False;
   end;
 end;
 
@@ -13717,7 +13747,7 @@ var
       FLeadMap.Add(ToUChar((Code as TRELiteralCode).FSubP), (Code as TRELiteralCode).FCompareOptions);
     end
     else if (Code is TRECharClassCode) and (Code as TRECharClassCode).SimpleClass and
-        not (Code as TRECharClassCode).FNegative then
+        (FLeadMap.FNegative = (Code as TRECharClassCode).FNegative) then
     begin
       FLeadMap.Add((Code as TRECharClassCode));
     end
@@ -15725,9 +15755,9 @@ begin
     if NoMap then
     begin
       FLeadMap.Clear;
-      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
-        FLeadCharMode := lcmHasLead
-      else
+//      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
+//        FLeadCharMode := lcmHasLead
+//      else
         FLeadCharMode := lcmNone;
     end
     else
@@ -16343,96 +16373,96 @@ begin
   ADest.EndUpDate;
 end;
 
-//procedure TSkRegExp.DumpParse(TreeView: TTreeView);
-//
-//  function Add(Node: TTreeNode; const S: REString): TTreeNode;
-//  begin
-//    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
-//  end;
-//
-//  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
-//  var
-//    ANode: TTreeNode;
-//  begin
-//    if Code is TREBinCode then
-//    begin
-//      with Code as TREBinCode do
-//      begin
-//        case Op of
-//          opUnion:
-//            ANode := Add(Node, sBinCode_Union);
-//          opConcat:
-//            ANode := Add(Node, sBinCode_Concat);
-//          opEmply:
-//            ANode := Add(Node, sBinCode_Emply);
-//          opLoop:
-//            ANode := Add(Node, sBinCode_Loop);
-//          opPlus:
-//            ANode := Add(Node, sBinCode_Plus);
-//          opStar:
-//            ANode := Add(Node, sBinCode_Star);
-//          opQuest:
-//            ANode := Add(Node, sBinCode_Quest);
-//          opBound:
-//            ANode := Add(Node, sBinCode_Bound);
-//          opLHead:
-//            ANode := Add(Node, sBinCode_LHead);
-//          opLTail:
-//            ANode := Add(Node, sBinCode_LTail);
-//          opGroup:
-//            ANode := Add(Node, sBinCode_Group);
-//          opNoBackTrack:
-//            ANode := Add(Node, sBinCode_Suspend);
-//          opKeepPattern:
-//            ANode := Add(Node, sBinCode_KeepPattern);
-//          opFail:
-//            ANode := Add(Node, sBinCode_Fail);
-//          opPrune:
-//            ANode := Add(Node, sBinCode_Prune);
-//          opSkip:
-//            ANode := Add(Node, sBinCode_Skip);
-//          opMark:
-//            ANode := Add(Node, sBinCode_Mark);
-//          opThen:
-//            ANode := Add(Node, sBinCode_Then);
-//          opCommint:
-//            ANode := Add(Node, sBinCode_Commit);
-//          opAccept:
-//            ANode := Add(Node, sBinCode_Accept);
-//          opAheadMatch:
-//            ANode := Add(Node, sBinCode_AheadMatch);
-//          opBehindMatch:
-//            ANode := Add(Node, sBinCode_BehindMatch);
-//          opAheadNoMatch:
-//            ANode := Add(Node, sBinCode_AheadNoMatch);
-//          opBehindNoMatch:
-//            ANode := Add(Node, sBinCode_BehindNoMatch);
-//          opGoSub:
-//            ANode := Add(Node, sBinCode_GroupCall);
-//          opIfMatch:
-//            ANode := Add(Node, sBinCode_IfMatch);
-//          opIfThen:
-//            ANode := Add(Node, sBinCode_IfThen);
-//          opDefine:
-//            ANode := Add(Node, sBinCode_Define);
-//        else
-//          raise ESkRegExp.Create(sBinCode_Raise);
-//        end;
-//        if Left <> nil then
-//          DumpParseSub(Left, ANode);
-//        if Right <> nil then
-//          DumpParseSub(Right, ANode);
-//      end;
-//    end
-//    else
-//      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
-//  end;
-//
-//begin
-//  TreeView.Items.Clear;
-//  DumpParseSub(FCode, nil);
-//  TreeView.FullExpand;
-//end;
+procedure TSkRegExp.DumpParse(TreeView: TTreeView);
+
+  function Add(Node: TTreeNode; const S: REString): TTreeNode;
+  begin
+    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
+  end;
+
+  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
+  var
+    ANode: TTreeNode;
+  begin
+    if Code is TREBinCode then
+    begin
+      with Code as TREBinCode do
+      begin
+        case Op of
+          opUnion:
+            ANode := Add(Node, sBinCode_Union);
+          opConcat:
+            ANode := Add(Node, sBinCode_Concat);
+          opEmply:
+            ANode := Add(Node, sBinCode_Emply);
+          opLoop:
+            ANode := Add(Node, sBinCode_Loop);
+          opPlus:
+            ANode := Add(Node, sBinCode_Plus);
+          opStar:
+            ANode := Add(Node, sBinCode_Star);
+          opQuest:
+            ANode := Add(Node, sBinCode_Quest);
+          opBound:
+            ANode := Add(Node, sBinCode_Bound);
+          opLHead:
+            ANode := Add(Node, sBinCode_LHead);
+          opLTail:
+            ANode := Add(Node, sBinCode_LTail);
+          opGroup:
+            ANode := Add(Node, sBinCode_Group);
+          opNoBackTrack:
+            ANode := Add(Node, sBinCode_Suspend);
+          opKeepPattern:
+            ANode := Add(Node, sBinCode_KeepPattern);
+          opFail:
+            ANode := Add(Node, sBinCode_Fail);
+          opPrune:
+            ANode := Add(Node, sBinCode_Prune);
+          opSkip:
+            ANode := Add(Node, sBinCode_Skip);
+          opMark:
+            ANode := Add(Node, sBinCode_Mark);
+          opThen:
+            ANode := Add(Node, sBinCode_Then);
+          opCommint:
+            ANode := Add(Node, sBinCode_Commit);
+          opAccept:
+            ANode := Add(Node, sBinCode_Accept);
+          opAheadMatch:
+            ANode := Add(Node, sBinCode_AheadMatch);
+          opBehindMatch:
+            ANode := Add(Node, sBinCode_BehindMatch);
+          opAheadNoMatch:
+            ANode := Add(Node, sBinCode_AheadNoMatch);
+          opBehindNoMatch:
+            ANode := Add(Node, sBinCode_BehindNoMatch);
+          opGoSub:
+            ANode := Add(Node, sBinCode_GroupCall);
+          opIfMatch:
+            ANode := Add(Node, sBinCode_IfMatch);
+          opIfThen:
+            ANode := Add(Node, sBinCode_IfThen);
+          opDefine:
+            ANode := Add(Node, sBinCode_Define);
+        else
+          raise ESkRegExp.Create(sBinCode_Raise);
+        end;
+        if Left <> nil then
+          DumpParseSub(Left, ANode);
+        if Right <> nil then
+          DumpParseSub(Right, ANode);
+      end;
+    end
+    else
+      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
+  end;
+
+begin
+  TreeView.Items.Clear;
+  DumpParseSub(FCode, nil);
+  TreeView.FullExpand;
+end;
 
 {$ENDIF}
 
