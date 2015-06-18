@@ -299,15 +299,8 @@ type
     property MatchCount: Integer read FMatchCount;
   end;
 
-  TRECharMapRec = record
-    Ch: UChar;
-    Next: Pointer;
-  end;
-  PRECharMapRec = ^TRECharMapRec;
-
   TREASCIICharMapArray = array[0..15] of Byte;
-  TRECharMapArray = array[0..CONST_CharMapMax - 1] of Pointer;
-  
+
   TCalloutData = record
     Version: Integer;
     CalloutNumber: Integer;
@@ -518,16 +511,17 @@ type
   TRECharRangeRec = record
     StartWChar, LastWChar: UChar;
   end;
-  PRECharRange = ^TRECharRangeRec;
+  PRECharRangeRec = ^TRECharRangeRec;
 
-  TRECharRang = class
+  TRECharRange = class
   private
     FList: TList;
     FCurIndex: Integer;
-    function Get(Index: Integer): PRECharRange;
+    function Get(Index: Integer): PRECharRangeRec;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure Assign(Source: TRECharRange);
     function Add(AStartWChar, ALastWChar: UChar): Integer;
     function Compare(Ch: UChar): Integer;
     procedure Clear;
@@ -537,7 +531,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString;
 {$ENDIF}
-    property Items[Index: Integer]: PRECharRange read Get; default;
+    property Items[Index: Integer]: PRECharRangeRec read Get; default;
   end;
 
   TREIsEqualFunc = function(AStr: PWideChar; var Len: Integer): Boolean of object;
@@ -557,25 +551,22 @@ type
   TRECharClassCode = class(TRECode)
   private
     FASCIIMap: TREASCIICharMapArray;
-    FMap:  TRECharMapArray;
     FWChar: UChar;
     FCharCount: Integer;
     FCharSetCount: Integer;
     FIgnoreCase: Boolean;
     FASCIIOnly: Boolean;
-    FCharRange: TRECharRang;
+    FCharRange: TRECharRange;
     FHasRange: Boolean;
 //    FMatchFuncArray: TRECharClassMatchFuncArray;
     FPosixClass: TREPosixCharSetArray;
     FUnicodeProperty: TREPropertyCharSetArray;
     FHasUnicode: Boolean;
-    FHasMap: Boolean;
     function GetSimpleClass: Boolean;
   protected
     Match: TList;
     IsEqualFunc: TREIsEqualFunc;
     procedure InitCharMap(IsNegative: Boolean);
-    procedure ClearCharMap;
     procedure InternalAdd(Ch: UChar);
     function IsEqualMapA(AStr: PWideChar; var Len: Integer): Boolean;
     function IsEqualFull(AStr: PWideChar; var Len: Integer): Boolean;
@@ -5470,11 +5461,11 @@ begin
   Result := True;
 end;
 
-{ TRECharRangeList }
+{ TRECharRange }
 
-function TRECharRang.Add(AStartWChar, ALastWChar: UChar): Integer;
+function TRECharRange.Add(AStartWChar, ALastWChar: UChar): Integer;
 var
-  Item: PRECharRange;
+  Item: PRECharRangeRec;
   LStartCmp, LLastCmp: Integer;
 begin
   Result := -1;
@@ -5514,10 +5505,27 @@ begin
     Result := -1;
 end;
 
-procedure TRECharRang.Clear;
+procedure TRECharRange.Assign(Source: TRECharRange);
+var
+  P: PRECharRangeRec;
+  I: Integer;
+begin
+  Clear;
+  FCurIndex := Source.FCurIndex;
+
+  for I := 0 to Source.FList.Count - 1 do
+  begin
+    New(P);
+    P.StartWChar := Source[I].StartWChar;
+    P.LastWChar :=  Source[I].LastWChar;
+    FList.Add(P);
+  end;
+end;
+
+procedure TRECharRange.Clear;
 var
   I: Integer;
-  P: PRECharRange;
+  P: PRECharRangeRec;
 begin
   for I := 0 to FList.Count - 1 do
   begin
@@ -5529,15 +5537,15 @@ begin
   FList.Clear;
 end;
 
-function TRECharRang.Get(Index: Integer): PRECharRange;
+function TRECharRange.Get(Index: Integer): PRECharRangeRec;
 begin
   Result := FList[Index];
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
-function TRECharRang.GetDebugStr: REString;
+function TRECharRange.GetDebugStr: REString;
 var
-  P: PRECharRange;
+  P: PRECharRangeRec;
   I: Integer;
 begin
   Result := '';
@@ -5554,10 +5562,10 @@ end;
 
 {$ENDIF SKREGEXP_DEBUG}
 
-function TRECharRang.IsMatch(Ch: UChar): Boolean;
+function TRECharRange.IsMatch(Ch: UChar): Boolean;
 var
   ALeft, ARight, AMid: Integer;
-  P: PRECharRange;
+  P: PRECharRangeRec;
 begin
   Result := False;
   ALeft := 0;
@@ -5579,7 +5587,7 @@ begin
   end;
 end;
 
-function TRECharRang.Compare(Ch: UChar): Integer;
+function TRECharRange.Compare(Ch: UChar): Integer;
 var
   I: Integer;
 begin
@@ -5612,19 +5620,19 @@ begin
   FCurIndex := I;
 end;
 
-function TRECharRang.Count: Integer;
+function TRECharRange.Count: Integer;
 begin
   Result := FList.Count;
 end;
 
-constructor TRECharRang.Create;
+constructor TRECharRange.Create;
 begin
   inherited;
   FList := TList.Create;
   FCurIndex := -1;
 end;
 
-destructor TRECharRang.Destroy;
+destructor TRECharRange.Destroy;
 begin
   Clear;
   FList.Free;
@@ -5636,7 +5644,6 @@ end;
 function TRECharClassCode.Add(ACharClass: TRECharClassCode): Integer;
 var
   I: Integer;
-  P: PRECharMapRec;
 begin
   Result := 1;
 
@@ -5646,21 +5653,12 @@ begin
   for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
     FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
 
-  for I := Low(ACharClass.FMap) to High(ACharClass.FMap) do
-  begin
-    P := ACharClass.FMap[I];
-    while P <> nil do
-    begin
-      Add(P.Ch);
-
-      P := P.Next;
-    end;
-  end;
+  FCharRange.Assign(ACharClass.FCharRange);
 end;
 
 procedure TRECharClassCode.Build;
 begin
-  if (FCharCount > 0) and (not FHasMap) and
+  if (FCharCount = 0) and
     (System.Length(FPosixClass) = 0) and
     (System.Length(FUnicodeProperty) = 0) then
   begin
@@ -5926,30 +5924,6 @@ begin
   SetLength(FPosixClass, 0);
   SetLength(FUnicodeProperty, 0);
   InitCharMap(False);
-  ClearCharMap;
-end;
-
-procedure TRECharClassCode.ClearCharMap;
-var
-  I: Integer;
-  P, Next: PRECharMapRec;
-begin
-  for I := 0 to High(FMap) do
-  begin
-    if FMap[I] <> nil then
-    begin
-      P := FMap[I];
-      Next := P.Next;
-      Dispose(P);
-      while Next <> nil do
-      begin
-        P := Next;
-        Next := P.Next;
-        Dispose(P);
-      end;
-    end;
-    FMap[I] := nil;
-  end;
 end;
 
 procedure TRECharClassCode.InitCharMap(IsNegative: Boolean);
@@ -5965,9 +5939,6 @@ begin
 end;
 
 procedure TRECharClassCode.InternalAdd(Ch: UChar);
-var
-  Index: Integer;
-  P, Prev: PRECharMapRec;
 begin
   if Ch < 128 then
   begin
@@ -5981,33 +5952,7 @@ begin
     if not FHasUnicode then
       FHasUnicode := True;
 
-    if not FHasMap then
-      FHasMap := True;
-
-    Index := Ord(Ch) mod CONST_CharMapMax;
-
-    P := FMap[Index];
-    if P = nil then
-    begin
-      New(P);
-      P^.Ch := Ch;
-      P^.Next := nil;
-      FMap[Index] := P;
-    end
-    else
-    begin
-      repeat
-        if P^.Ch = Ch then
-          Exit;
-        Prev := P;
-        P := P.Next;
-      until P = nil;
-
-      New(P);
-      P^.Ch := Ch;
-      P^.Next := nil;
-      Prev.Next := P;
-    end;
+    FCharRange.Add(Ch, Ch);
   end;
 
   Inc(FCharCount);
@@ -6017,7 +5962,7 @@ constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
   AOptions: TREOptions);
 begin
   inherited Create(ARegExp, AOptions);
-  FCharRange := TRECharRang.Create;
+  FCharRange := TRECharRange.Create;
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
@@ -6029,7 +5974,6 @@ end;
 
 destructor TRECharClassCode.Destroy;
 begin
-  ClearCharMap;
   FCharRange.Free;
   inherited;
 end;
@@ -6127,7 +6071,6 @@ var
   FD: TUnicodeMultiChar;
   LProperty: TREPropertyCharSetRec;
   LPosixClass: TREPosixCharSetRec;
-  P, Prev: PRECharMapRec;
   Index: Integer;
 begin
   Result := False;
@@ -6213,39 +6156,6 @@ begin
     begin
       Result := True;
       Exit;
-    end;
-
-    if FHasMap then
-    begin
-      Index := Ord(Ch) mod CONST_CharMapMax;
-      P := FMap[Index];
-      if P <> nil then
-      begin
-        if P.Ch = Ch then
-        begin
-          Result := not FNegative;
-          Exit;
-        end;
-
-        P := P.Next;
-        while P <> nil do
-        begin
-          if P.Ch = Ch then
-          begin
-            Result := not FNegative;
-            Exit;
-          end;
-          P := P.Next;
-        end;
-      end
-      else
-      begin
-        if FNegative then
-        begin
-          Result := True;
-          Exit;
-        end;
-      end;
     end;
 
     if FCharRange.Count > 0 then
@@ -15344,10 +15254,9 @@ procedure TREMatchEngine.MatchProcessAdd(NFACode: TRENFAState; AStr: PWideChar;
 var
   S: REString;
   LeftS, RightS: REString;
-  L, StartMatch, CurrentPosition: Integer;
+  CurrentPosition: Integer;
 begin
   CurrentPosition := AStr - FRegExp.FTextTopP;
-  StartMatch := FGroups[0].StartP - FRegExp.FTextTopP + 1;
 
   S := FRegExp.InputString;
 
@@ -15611,12 +15520,10 @@ procedure TREMatchEngine.SetupLeadStrings;
 var
   I: Integer;
   NFACode, NextCode: TRENFAState;
-  IsLiteral, NoMap: Boolean;
+  NoMap: Boolean;
   LineHeadCount, TextHeadCount: Integer;
   LiteralCount: Integer;
 begin
-  IsLiteral := False;
-
   FOptimizeData.GetLeadCode(FRegExp.FBranchCount, FLeadCode);
 
   if FLeadCode.Count = 1 then
