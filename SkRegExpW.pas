@@ -2,10 +2,12 @@
   SkRegExpW.pas (SkRegExp regular expression library)
   **************************************************************************** *)
 (*
-  The contents of this file are subject to the Mozilla Public License
-  Version 1.1 (the "License"); you may not use this file except in
-  compliance with the License. You may obtain a copy of the License at
-  http://www.mozilla.org/MPL/
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+  This Source Code Form is “Incompatible With Secondary Licenses”, as
+  defined by the Mozilla Public License, v. 2.0.
 
   Software distributed under the License is distributed on an "AS IS"
   basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
@@ -16,11 +18,11 @@
 
   The Initial Developer of the Original Code is Shuichi Komiya.
 
-  E-mail: shu AT k DOT email DOT ne DOT jp
+  E-mail: shu AT komish DOT jp
   URL:    http://skregexp.komish.com/
 
   Portions created by Komiya Shuichi are
-  Copyright (C) 2007-2013 Komiya Shuichi. All Rights Reserved.
+  Copyright (C) 2007-2015 Komiya Shuichi. All Rights Reserved.
 *)
 
 unit SkRegExpW;
