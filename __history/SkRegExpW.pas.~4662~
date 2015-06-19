@@ -15671,10 +15671,7 @@ begin
         FLeadCharMode := lcmNone;
     end
     else
-    begin
       FLeadCharMode := lcmLeadMap;
-      FLeadMap.Build;
-    end;
   end;
 end;
 

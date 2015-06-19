@@ -1,0 +1,82 @@
+unit SkRegExpDef;
+
+interface
+
+uses Classes;
+
+type
+{$IFDEF UNICODE}
+  TREStrings = TStrings;
+  TREStringList = TStringList;
+  REString = UnicodeString;
+{$ELSE}
+  TREStrings = TWideStrings;
+  TREStringList = TWideStringList;
+  REString = WideString;
+{$ENDIF}
+  UChar = UCS4Char;
+  UCharArray = array of UChar;
+
+  { String Compare Option }
+  { 文字照合オプション }
+  TRECompareOption = (coIgnoreCase, coIgnoreWidth, coIgnoreKana, coASCIIOnly);
+  TRECompareOptions = set of TRECompareOption;
+
+  { Regular Expression Option }
+  { 正規表現オプション }
+  TREOption = (roNone, roIgnoreCase, roMultiLine, roNamedGroupOnly,
+    roSingleLine, roExtended, roIgnoreWidth, roIgnoreKana,
+    roDefinedCharClassLegacy, roAutoCallout, roASCIICharClass, roASCIIOnly);
+  TREOptions = set of TREOption;
+  PREOptions = ^TREOptions;
+
+  { Token }
+  { トークン }
+  TREToken = (tkEnd, tkChar, tkUnion, tkQuest, tkDot, tkRangeChar, tkLHead,
+    tkLTail, tkEmpty, tkLPar, tkRPar, tkStar, tkPlus, tkBound,
+    tkCharClassFirst, tkNegativeCharClassFirst, tkCharClassEnd, tkGroupBegin,
+    tkReference, tkReferenceRelative, tkNamedReference, tkLParWithOption,
+    tkWordChar, tkNEWordChar, tkDigitChar, tkNEDigitChar, tkSpaceChar,
+    tkNESpaceChar, tkTHead, tkTTail, tkTTailEnd, tkWordBoundary,
+    tkNEWordBoundary, tkOption, tkHorizontalSpaceChar,
+    tkNEHorizontalSpaceChar, tkVerticalSpaceChar, tkNEVerticalSpaceChar,
+    tkLineBreak, tkPosixBracket, tkNEPosixBracket, tkProperty, tkNEProperty,
+    tkNoBackTrack, tkKeepPattern, tkAheadMatch, tkAheadNoMatch, tkBehindMatch,
+    tkBehindNoMatch, tkCombiningSequence, tkGoSub, tkGoSubName,
+    tkGoSubRelative, tkIfMatch, tkIfMatchRef, tkGlobalPos, tkBranchReset,
+    tkExceptEOL,
+    tkFail, tkCallout, tkInSubRef, tkDefine, tkbcPrune, tkbcSkip, tkbcMark,
+    tkbcThen, tkbcCommit, tkbcAccept, tkEOLType);
+
+  TREOperator = (opEmply, opConcat, opUnion, opGroup, opLHead, opLTail,
+    opPlus, opStar, opBound, opLoop, opNoBackTrack, opKeepPattern,
+    opAheadMatch, opAheadNoMatch, opBehindMatch, opBehindNoMatch, opGoSub,
+    opIfMatch, opIfThen, opDefine, opFail, opPrune, opSkip, opMark, opThen,
+    opCommint, opAccept);
+
+  TRENFAKind = (nkNormal, nkChar, nkEmpty, nkStar, nkPlus, nkBound, nkQuest, nkLoop,
+    nkLoopExit, nkLoopEnd, nkGroupBegin, nkGroupEnd, nkKeepPattern,
+    nkSuspend, nkMatchEnd, nkEnd, nkGoSub, nkAheadMatch, nkAheadNoMatch,
+    nkBehindMatch, nkBehindNoMatch, nkIfMatch, nkIfThen, nkCallout, nkDefine,
+    nkFail, nkPrune, nkSkip, nkMark, nkThen, nkCommit, nkAccept);
+
+  TRELoopKind = (lkNone, lkGreedy, lkReluctant, lkSimpleReluctant, lkPossessive,
+    lkAny, lkCombiningSequence);
+
+  TREPosixClassKind = (pckNone, pckAlnum, pckAlpha, pckAscii, pckBlank,
+    pckCntrl, pckDigit, pckGraph, pckLower, pckPrint, pckUpper, pckPunct,
+    pckSpace, pckSpacePerl, pckSpaceVertical, pckSpaceHorizontal, pckXdigit,
+    pckWord, pckAny, pckAssigned);
+  TREPosixClassKinds = set of TREPosixClassKind;
+
+  TRELineBreakKind = (lbAnyCRLF, lbLF, lbCR, lCRLF, lbAny);
+
+  TRETextPosRec = record
+    Min, Max: Integer;
+  end;
+
+
+
+implementation
+
+end.

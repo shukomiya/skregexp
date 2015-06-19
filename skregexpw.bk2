@@ -2,12 +2,10 @@
   SkRegExpW.pas (SkRegExp regular expression library)
   **************************************************************************** *)
 (*
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
-  This Source Code Form is “Incompatible With Secondary Licenses”, as
-  defined by the Mozilla Public License, v. 2.0.
+  The contents of this file are subject to the Mozilla Public License
+  Version 1.1 (the "License"); you may not use this file except in
+  compliance with the License. You may obtain a copy of the License at
+  http://www.mozilla.org/MPL/
 
   Software distributed under the License is distributed on an "AS IS"
   basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
@@ -16,13 +14,13 @@
 
   The Original Code is SkRegExpW.pas(for SkRegExp Library).
 
-  The Initial Developer of the Original Code is Komiya Shuichi.
+  The Initial Developer of the Original Code is Shuichi Komiya.
 
-  E-mail: shu AT komish DOT jp
+  E-mail: shu AT k DOT email DOT ne DOT jp
   URL:    http://skregexp.komish.com/
 
   Portions created by Komiya Shuichi are
-  Copyright (C) 2007-2015 Komiya Shuichi. All Rights Reserved.
+  Copyright (C) 2007-2013 Komiya Shuichi. All Rights Reserved.
 *)
 
 unit SkRegExpW;
@@ -49,10 +47,6 @@ uses
   SysUtils,
   Classes,
   Contnrs,
-{$IFDEF SKREGEXP_DEBUG}
-  Comctrls,
-  StrUtils,
-{$ENDIF SKREGEXP_DEBUG}
 {$IFNDEF UNICODE}
   WideStrings,
   WideStrUtils,
@@ -70,6 +64,7 @@ const
   MaxListSize = Maxint div 16;
 {$IFEND}
 {$ENDIF}
+  CONST_CharMapMax = 251;
   CONST_GroupNameHashMax = 15;
   CONST_TrieHashMax = 15;
   CONST_GroupMax = 65535;
@@ -133,13 +128,13 @@ type
     opPlus, opStar, opBound, opLoop, opNoBackTrack, opKeepPattern,
     opAheadMatch, opAheadNoMatch, opBehindMatch, opBehindNoMatch, opGoSub,
     opIfMatch, opIfThen, opDefine, opFail, opPrune, opSkip, opMark, opThen,
-    opCommint, opAccept, opQuest);
+    opCommint, opAccept);
 
   TRENFAKind = (nkNormal, nkChar, nkEmpty, nkStar, nkPlus, nkBound, nkQuest, nkLoop,
     nkLoopExit, nkLoopEnd, nkGroupBegin, nkGroupEnd, nkKeepPattern,
     nkSuspend, nkMatchEnd, nkEnd, nkGoSub, nkAheadMatch, nkAheadNoMatch,
     nkBehindMatch, nkBehindNoMatch, nkIfMatch, nkIfThen, nkCallout, nkDefine,
-    nkFail, nkPrune, nkSkip, nkMark, nkThen, nkCommit, nkAccept, nkTrie, nkAnchor);
+    nkFail, nkPrune, nkSkip, nkMark, nkThen, nkCommit, nkAccept);
 
   TRELoopKind = (lkNone, lkGreedy, lkReluctant, lkSimpleReluctant, lkPossessive,
     lkAny, lkCombiningSequence);
@@ -284,7 +279,7 @@ type
     function Exec(AStr: PWideChar; ATextLen: Integer): Boolean;
     function ExecNext: Boolean;
     function GetPrefix: REString;
-    function IsMatch(AStr: PWideChar): Boolean;
+    function Match(AStr: PWideChar): Boolean;
 {$IFDEF SKREGEXP_DEBUG}
     function DebugOutput: REString;
 {$ENDIF SKREGEXP_DEBUG}
@@ -300,8 +295,15 @@ type
     property MatchCount: Integer read FMatchCount;
   end;
 
-  TREASCIICharMapArray = array[0..15] of Byte;
+  TRECharMapRec = record
+    Ch: UChar;
+    Next: Pointer;
+  end;
+  PRECharMapRec = ^TRECharMapRec;
 
+  TREASCIICharMapArray = array[0..15] of Byte;
+  TRECharMapArray = array[0..CONST_CharMapMax - 1] of Pointer;
+  
   TCalloutData = record
     Version: Integer;
     CalloutNumber: Integer;
@@ -324,7 +326,6 @@ type
     function GetLength: Integer; virtual;
     function GetCharLength: TRETextPosRec; virtual;
     function GetSearch: TREQuickSearch; virtual;
-    function GetTrieSearch: TRETrieSearch; virtual;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
     function CompareCode(Source: TRECode): Integer; virtual;
@@ -350,7 +351,6 @@ type
     // 文字数
     property CharLength: TRETextPosRec read GetCharLength;
     property Search: TREQuickSearch read GetSearch;
-    property TrieSearch: TRETrieSearch read GetTrieSearch;
   end;
 
   TRELiteralCode = class(TRECode)
@@ -378,30 +378,6 @@ type
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
-{$IFDEF SKREGEXP_DEBUG}
-    function GetDebugStr: REString; override;
-{$ENDIF}
-  end;
-
-  TRETrieCode = class(TRECode)
-  private
-    FSearch: TRETrieSearch;
-    FQuickSearch: TREQuickSearch;
-    function GetMatchCount: Integer;
-  protected
-    function GetCharLength: TRETextPosRec; override;
-    function GetTrieSearch: TRETrieSearch; override;
-    function GetSearch: TREQuickSearch; override;
-  public
-    constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
-    destructor Destroy; override;
-    procedure Add(ACode: TRECode); inline;
-    function Find(AStr: PWideChar): PWideChar; override;
-    function GenerateSearch: Boolean;
-    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsOverlap(ACode: TRECode): Boolean; override;
-    property MatchCount: Integer read GetMatchCount;
-    property Search: TREQuickSearch read GetSearch;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -509,33 +485,31 @@ type
 {$ENDIF}
   end;
 
-  TRECharRangeRec = record
+  TRECharRange = record
     StartWChar, LastWChar: UChar;
   end;
-  PRECharRangeRec = ^TRECharRangeRec;
+  PRECharRange = ^TRECharRange;
 
-  TRECharRange = class
+  TRECharRangeList = class
   private
     FList: TList;
     FCurIndex: Integer;
-    function Get(Index: Integer): PRECharRangeRec;
+    function Get(Index: Integer): PRECharRange;
   public
     constructor Create;
     destructor Destroy; override;
-    procedure Assign(Source: TRECharRange);
     function Add(AStartWChar, ALastWChar: UChar): Integer;
     function Compare(Ch: UChar): Integer;
     procedure Clear;
     function Count: Integer; inline;
-    function IsMatch(Ch: UChar): Boolean;
-
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString;
 {$ENDIF}
-    property Items[Index: Integer]: PRECharRangeRec read Get; default;
+    property Items[Index: Integer]: PRECharRange read Get; default;
   end;
 
-  TREIsEqualFunc = function(AStr: PWideChar; var Len: Integer): Boolean of object;
+  TRECharClassMatchFunc = function(AStr: PWideChar; var Len: Integer): Boolean of object;
+  TRECharClassMatchFuncArray = array of TRECharClassMatchFunc;
 
   TREPosixCharSetRec = record
     Kind: TREPosixClassKind;
@@ -552,25 +526,25 @@ type
   TRECharClassCode = class(TRECode)
   private
     FASCIIMap: TREASCIICharMapArray;
+    FMap:  TRECharMapArray;
     FWChar: UChar;
     FCharCount: Integer;
     FCharSetCount: Integer;
     FIgnoreCase: Boolean;
     FASCIIOnly: Boolean;
-    FCharRange: TRECharRange;
+    FCharRange: TRECharRangeList;
     FHasRange: Boolean;
-//    FMatchFuncArray: TRECharClassMatchFuncArray;
+    FMatchFuncArray: TRECharClassMatchFuncArray;
     FPosixClass: TREPosixCharSetArray;
     FUnicodeProperty: TREPropertyCharSetArray;
     FHasUnicode: Boolean;
+    FHasMap: Boolean;
     function GetSimpleClass: Boolean;
   protected
     Match: TList;
-    IsEqualFunc: TREIsEqualFunc;
     procedure InitCharMap(IsNegative: Boolean);
+    procedure ClearCharMap;
     procedure InternalAdd(Ch: UChar);
-    function IsEqualMapA(AStr: PWideChar; var Len: Integer): Boolean;
-    function IsEqualFull(AStr: PWideChar; var Len: Integer): Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean;
       AOptions: TREOptions);
@@ -584,7 +558,6 @@ type
     function Add(AUnicodeProperty: TUnicodeProperty; IsNegative: Boolean): Integer; overload;
     function Add(AMap: TREASCIICharMapArray; IsNegative: Boolean): Integer; overload;
     function Add(ACharClass: TRECharClassCode): Integer; overload;
-    procedure Build;
     function ExecRepeat(var AStr: PWideChar; IsGreedy: Boolean;
       const AMin: Integer; const AMax: Integer = MaxInt): Boolean; overload; override;
     function Find(AStr: PWideChar): PWideChar; override;
@@ -1039,21 +1012,21 @@ type
   TRELeadCharMode = (lcmNone, lcmFirstLiteral, lcmFirstBranch,
     lcmSimple, lcmSimpleBranch, lcmTextTop, lcmLineTop,
     lcmHasLead, lcmLeadMap, lcmFixedAnchor, lcmVariableAnchor,
-    lcmFixedBranch, lcmVariableBranch, lcmAhoCrasick);
-
-  TRENFAState = class;
+    lcmFixedBranch, lcmVariableBranch);
 
   TREOptimizeData = class
   private
-    FState: TRENFAState;
+    FCode: TRECode;
+    FBranchLevel: Integer;
     FOffset: TRETextPosRec;
     FKind: TREOptimizeDataKind;
   public
 {$IFDEF SKREGEXP_DEBUG}
     function DebugOutput: REString;
 {$ENDIF SKREGEXP_DEBUG}
-    property State: TRENFAState read FState write FState;
+    property Code: TRECode read FCode write FCode;
     property Offset: TRETextPosRec read FOffset write FOffset;
+    property BranchLevel: Integer read FBranchLevel write FBranchLevel;
     property Kind: TREOptimizeDataKind read FKind write FKind;
   end;
 
@@ -1066,8 +1039,8 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure Clear;
-    function Add(Value: TRENFAState; AKind: TREOptimizeDataKind;
-      AOffset: TRETextPosRec): Integer;
+    function Add(Value: TRECode; AKind: TREOptimizeDataKind;
+      ABranchLevel: Integer; AOffset: TRETextPosRec): Integer;
 {$IFDEF SKREGEXP_DEBUG}
     procedure DebugOutput(ADest: TStrings);
 {$ENDIF SKREGEXP_DEBUG}
@@ -1176,33 +1149,6 @@ type
     function Add(Value: TRELoopStateItem): Integer;
     property Items[Index: Integer]: TRELoopStateItem read GetItem write SetItem; default;
   end;
-  
-  TREBranchState = class
-  private
-    FState: Integer;
-    FCode: TRECode;
-  public
-    property Code: TRECode read FCode write FCode;
-    property State: Integer read FState write FState;
-  end;
-
-  TREBranchStateStack = class
-  private
-    FList: TObjectList;
-    FCount: Integer;
-    function GetState: Integer;
-    function GetCode: TRECode;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure Clear;
-    function Count: Integer;
-    procedure Push(const Value: TREBranchState);
-    procedure Pop;
-    property Code: TRECode read GetCode;
-    property State: Integer read GetState;
-  end;
-  
 
   TREBranchStateRec = record
     State, Count: Integer;
@@ -1225,10 +1171,10 @@ type
     FStateStack: TList;
     FStateStackIndex: Integer;
     FGroupCount: Integer;
-    FBranchStack: TREBranchStateStack;
+    FBranchStack: TList;
+    FBranchIndex: Integer;
     FOptimizeData: TREOptimizeDataCollection;
     FHasAccept: Boolean;
-    FInSecondBranch: Boolean;
     FInBranch: Boolean;
   protected
     function GetNumber: Integer;
@@ -1272,14 +1218,12 @@ type
     FStartPBuf: PWideChar;
     FEndP: PWideChar;
     FSuccess: Boolean;
-    FAlwaysSuccess: Boolean;
     function GetIndex: Integer;
     function GetLength: Integer;
     function GetStrings: REString;
     function GetSubExpression: REString;
     procedure SetEndP(const Value: PWideChar);
     procedure SetStartP(const Value: PWideChar);
-    procedure SetAlwaysSuccess(const Value: Boolean);
   protected
     procedure Clear;
     property GroupBegin: TRENFAState read FGroupBegin write FGroupBegin;
@@ -1301,7 +1245,6 @@ type
     property SubExpression: REString read GetSubExpression;
     property JoinMatch: Boolean read FJoinMatch;
     property CharLength: TRETextPosRec read FCharLength write FCharLength;
-    property AlwaysSuccess: Boolean read FAlwaysSuccess write SetAlwaysSuccess;
   end;
 
   TGroupCollectionEnumerator = class
@@ -1468,7 +1411,6 @@ type
     FLeadCode: TREOptimizeDataList;
     FOptimizeData: TREOptimizeDataCollection;
     FLeadStrings: TRECode;
-    FLeadTrie: TRECode;
     FAnchorStrings: TRECode;
     FLeadCharMode: TRELeadCharMode;
     FLeadMap: TRECharClassCode;
@@ -1494,8 +1436,6 @@ type
       Stack: TREBackTrackStack; var AStr: PWideChar; AMode: TREMatchMode): Boolean;
     function MatchSpecial(var EntryCode: TRENFAState;const EndCode: TRENFAState;
       var AStr: PWideChar): Boolean; inline;
-    function MatchGoSub(var EntryCode: TRENFAState;const EndCode: TRENFAState;
-      Stack: TREBackTrackStack; var AStr: PWideChar): Boolean; inline;
 
     procedure OptimizeLoop;
 
@@ -1564,7 +1504,6 @@ type
 
     FGlobalStartP, FGlobalEndP: PWideChar;
     FModified: Boolean;
-    FNoUseReference: Boolean;
     FSuccess: Boolean;
 
     FOnCallout: TCalloutEvent;
@@ -1674,7 +1613,7 @@ type
     class function EscapeRegExChars(const S: REString): REString;
 
 {$IFDEF SKREGEXP_DEBUG}
-    procedure DumpParse(TreeView: TTreeView);
+//    procedure DumpParse(ADest: TStrings);
     procedure DumpNFA(ADest: TStrings);
     function DumpLeadCode: REString;
     function DumpMatchProcess: REString;
@@ -4085,7 +4024,7 @@ begin
 
   while AStr < FMatchEndP do
   begin
-    if IsMatch(AStr) then
+    if Match(AStr) then
     begin
       Result := True;
       Exit;
@@ -4131,7 +4070,7 @@ begin
   end;
 end;
 
-function TRETrieSearch.IsMatch(AStr: PWideChar): Boolean;
+function TRETrieSearch.Match(AStr: PWideChar): Boolean;
 var
   Index, L, K: Integer;
   Node: TRETrieNode;
@@ -4292,9 +4231,7 @@ ReStart:
     goto ReStart;
   end;
   if FMatchCount > 0 then
-  begin
     FEndP := GetLastMatchEndP;
-  end;
   Result := FEndP <> nil;
 end;
 
@@ -4417,11 +4354,6 @@ begin
   Result := nil;
 end;
 
-function TRECode.GetTrieSearch: TRETrieSearch;
-begin
-  Result := nil;
-end;
-
 function TRECode.IsInclude(ACode: TRECode): Boolean;
 begin
   Result := False;
@@ -4436,6 +4368,11 @@ function TRECode.IsVariable: Boolean;
 begin
   Result := False;
 end;
+
+//function TRECode.Match(Ch: UChar): Boolean;
+//begin
+//  Result := False;
+//end;
 
 { TRELiteralCode }
 
@@ -4666,104 +4603,6 @@ begin
       Result := ACode.IsEqual(FSubP, L);
     end
   end;
-end;
-
-{ TRETrieCode }
-
-procedure TRETrieCode.Add(ACode: TRECode);
-begin
-  FSearch.Add(ACode);
-end;
-
-constructor TRETrieCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
-begin
-  inherited Create(ARegExp, AOptions);
-  FSearch := TRETrieSearch.Create;
-end;
-
-destructor TRETrieCode.Destroy;
-begin
-  if Assigned(FQuickSearch) then
-    FQuickSearch.Free;
-  FSearch.Free;
-  inherited;
-end;
-
-function TRETrieCode.Find(AStr: PWideChar): PWideChar;
-begin
-  if FSearch.Exec(AStr, FRegExp.FMatchEndP - AStr) then
-    Result := FSearch.StartP
-  else
-    Result := nil;
-end;
-
-function TRETrieCode.GenerateSearch: Boolean;
-var
-  S: REString;
-begin
-  Result := False;
-  S := FSearch.GetPrefix;
-  if S <> '' then
-  begin
-    FQuickSearch := TREQuickSearch.Create;
-    FQuickSearch.Options := FSearch.FOptions;
-    if coIgnoreCase in FQuickSearch.Options then
-      S := ToFoldCase(S, coASCIIOnly in FQuickSearch.Options);
-    if coIgnoreWidth in FQuickSearch.Options then
-      S := ToWide(S);
-    if coIgnoreKana in FQuickSearch.Options then
-      S :=  ToKatakana(S);
-
-    FQuickSearch.FindText := S;
-    Result := True;
-  end;
-end;
-
-function TRETrieCode.GetCharLength: TRETextPosRec;
-begin
-  Result := FSearch.CharLength;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-function TRETrieCode.GetDebugStr: REString;
-begin
-  Result := Format(sTrie, [FSearch.DebugOutput]);
-end;
-{$ENDIF SKREGEXP_DEBUG}
-
-function TRETrieCode.GetMatchCount: Integer;
-begin
-  Result := FSearch.MatchCount;
-end;
-
-function TRETrieCode.GetSearch: TREQuickSearch;
-begin
-  Result := FQuickSearch;
-end;
-
-function TRETrieCode.GetTrieSearch: TRETrieSearch;
-begin
-  Result := FSearch;
-end;
-
-function TRETrieCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-begin
-  if not FSearch.Compiled then
-    FSearch.Compile;
-
-  Result := False;
-  Len := 0;
-  FSearch.FMatchEndP := FRegExp.FMatchEndP;
-  if FSearch.IsMatch(AStr) then
-  begin
-    Result := True;
-    Len := FSearch.EndP - FSearch.StartP;
-  end;
-end;
-
-function TRETrieCode.IsOverlap(ACode: TRECode): Boolean;
-begin
-  Result := False;
 end;
 
 { TREAnyCharCode }
@@ -5459,11 +5298,11 @@ begin
   Result := True;
 end;
 
-{ TRECharRange }
+{ TRECharRangeList }
 
-function TRECharRange.Add(AStartWChar, ALastWChar: UChar): Integer;
+function TRECharRangeList.Add(AStartWChar, ALastWChar: UChar): Integer;
 var
-  Item: PRECharRangeRec;
+  Item: PRECharRange;
   LStartCmp, LLastCmp: Integer;
 begin
   Result := -1;
@@ -5503,27 +5342,10 @@ begin
     Result := -1;
 end;
 
-procedure TRECharRange.Assign(Source: TRECharRange);
-var
-  P: PRECharRangeRec;
-  I: Integer;
-begin
-  Clear;
-  FCurIndex := Source.FCurIndex;
-
-  for I := 0 to Source.FList.Count - 1 do
-  begin
-    New(P);
-    P.StartWChar := Source[I].StartWChar;
-    P.LastWChar :=  Source[I].LastWChar;
-    FList.Add(P);
-  end;
-end;
-
-procedure TRECharRange.Clear;
+procedure TRECharRangeList.Clear;
 var
   I: Integer;
-  P: PRECharRangeRec;
+  P: PRECharRange;
 begin
   for I := 0 to FList.Count - 1 do
   begin
@@ -5535,15 +5357,15 @@ begin
   FList.Clear;
 end;
 
-function TRECharRange.Get(Index: Integer): PRECharRangeRec;
+function TRECharRangeList.Get(Index: Integer): PRECharRange;
 begin
   Result := FList[Index];
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
-function TRECharRange.GetDebugStr: REString;
+function TRECharRangeList.GetDebugStr: REString;
 var
-  P: PRECharRangeRec;
+  P: PRECharRange;
   I: Integer;
 begin
   Result := '';
@@ -5557,35 +5379,10 @@ begin
         UCharToString(P.LastWChar);
   end;
 end;
-
 {$ENDIF SKREGEXP_DEBUG}
 
-function TRECharRange.IsMatch(Ch: UChar): Boolean;
-var
-  ALeft, ARight, AMid: Integer;
-  P: PRECharRangeRec;
-begin
-  Result := False;
-  ALeft := 0;
-  ARight := FList.Count - 1;
 
-  while (ALeft <= ARight) do
-  begin
-    AMid := (ALeft + ARight) shr 1;
-    P := FList[AMid];
-    if (Ch >= P.StartWChar) and (Ch <= P.LastWChar) then
-    begin
-      Result := True;
-      Exit;
-    end;
-    if P.LastWChar > Ch then
-      ARight := AMid - 1
-    else
-      ALeft := AMid + 1;
-  end;
-end;
-
-function TRECharRange.Compare(Ch: UChar): Integer;
+function TRECharRangeList.Compare(Ch: UChar): Integer;
 var
   I: Integer;
 begin
@@ -5618,19 +5415,19 @@ begin
   FCurIndex := I;
 end;
 
-function TRECharRange.Count: Integer;
+function TRECharRangeList.Count: Integer;
 begin
   Result := FList.Count;
 end;
 
-constructor TRECharRange.Create;
+constructor TRECharRangeList.Create;
 begin
   inherited;
   FList := TList.Create;
   FCurIndex := -1;
 end;
 
-destructor TRECharRange.Destroy;
+destructor TRECharRangeList.Destroy;
 begin
   Clear;
   FList.Free;
@@ -5642,6 +5439,7 @@ end;
 function TRECharClassCode.Add(ACharClass: TRECharClassCode): Integer;
 var
   I: Integer;
+  P: PRECharMapRec;
 begin
   Result := 1;
 
@@ -5651,20 +5449,16 @@ begin
   for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
     FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
 
-  FCharRange.Assign(ACharClass.FCharRange);
-end;
-
-procedure TRECharClassCode.Build;
-begin
-  if (FCharRange.Count = 0) and
-    (System.Length(FPosixClass) = 0) and
-    (System.Length(FUnicodeProperty) = 0) then
+  for I := Low(ACharClass.FMap) to High(ACharClass.FMap) do
   begin
-    IsEqualFunc := IsEqualMapA;
-  end
-  else
-    IsEqualFunc := IsEqualFull;
+    P := ACharClass.FMap[I];
+    while P <> nil do
+    begin
+      Add(P.Ch);
 
+      P := P.Next;
+    end;
+  end;
 end;
 
 function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar;
@@ -5919,9 +5713,34 @@ begin
   FNegative := False;
   FIgnoreCase := False;
   FOptions := [];
+  SetLength(FMatchFuncArray, 0);
   SetLength(FPosixClass, 0);
   SetLength(FUnicodeProperty, 0);
   InitCharMap(False);
+  ClearCharMap;
+end;
+
+procedure TRECharClassCode.ClearCharMap;
+var
+  I: Integer;
+  P, Next: PRECharMapRec;
+begin
+  for I := 0 to High(FMap) do
+  begin
+    if FMap[I] <> nil then
+    begin
+      P := FMap[I];
+      Next := P.Next;
+      Dispose(P);
+      while Next <> nil do
+      begin
+        P := Next;
+        Next := P.Next;
+        Dispose(P);
+      end;
+    end;
+    FMap[I] := nil;
+  end;
 end;
 
 procedure TRECharClassCode.InitCharMap(IsNegative: Boolean);
@@ -5937,6 +5756,9 @@ begin
 end;
 
 procedure TRECharClassCode.InternalAdd(Ch: UChar);
+var
+  Index: Integer;
+  P, Prev: PRECharMapRec;
 begin
   if Ch < 128 then
   begin
@@ -5950,7 +5772,33 @@ begin
     if not FHasUnicode then
       FHasUnicode := True;
 
-    FCharRange.Add(Ch, Ch);
+    if not FHasMap then
+      FHasMap := True;
+
+    Index := Ord(Ch) mod CONST_CharMapMax;
+
+    P := FMap[Index];
+    if P = nil then
+    begin
+      New(P);
+      P^.Ch := Ch;
+      P^.Next := nil;
+      FMap[Index] := P;
+    end
+    else
+    begin
+      repeat
+        if P^.Ch = Ch then
+          Exit;
+        Prev := P;
+        P := P.Next;
+      until P = nil;
+
+      New(P);
+      P^.Ch := Ch;
+      P^.Next := nil;
+      Prev.Next := P;
+    end;
   end;
 
   Inc(FCharCount);
@@ -5960,18 +5808,19 @@ constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
   AOptions: TREOptions);
 begin
   inherited Create(ARegExp, AOptions);
-  FCharRange := TRECharRange.Create;
+  FCharRange := TRECharRangeList.Create;
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
+  SetLength(FMatchFuncArray, 0);
   SetLength(FPosixClass, 0);
   SetLength(FUnicodeProperty, 0);
   InitCharMap(ANegative);
-  IsEqualFunc := IsEqualFull;
 end;
 
 destructor TRECharClassCode.Destroy;
 begin
+  ClearCharMap;
   FCharRange.Free;
   inherited;
 end;
@@ -6021,54 +5870,13 @@ begin
   Result := nil;
 end;
 
-function TRECharClassCode.IsEqualMapA(AStr: PWideChar;
-  var Len: Integer): Boolean;
-var
-  Ch: UChar;
-begin
-  Result := False;
-  Len := 0;
-
-  if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  if AStr^ < #128 then
-  begin
-    if FIgnoreCase then
-    begin
-      case AStr^ of
-        'A'..'Z':
-          Ch := UChar(AStr^) xor $0020
-        else
-          Ch := UChar(AStr^);
-      end;
-    end
-    else
-      Ch := UChar(AStr^);
-
-    Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
-  end
-  else
-  begin
-    if not FHasUnicode then
-      Result := True;
-  end;
-  if Result then
-    Len := 1;
-end;
-
 function TRECharClassCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-begin
-  Result := IsEqualFunc(AStr, Len);
-end;
-
-function TRECharClassCode.IsEqualFull(AStr: PWideChar;
-  var Len: Integer): Boolean;
 var
   Ch: UChar;
   FD: TUnicodeMultiChar;
   LProperty: TREPropertyCharSetRec;
   LPosixClass: TREPosixCharSetRec;
+  P, Prev: PRECharMapRec;
   Index: Integer;
 begin
   Result := False;
@@ -6156,12 +5964,45 @@ begin
       Exit;
     end;
 
+    if FHasMap then
+    begin
+      Index := Ord(Ch) mod CONST_CharMapMax;
+      P := FMap[Index];
+      if P <> nil then
+      begin
+        if P.Ch = Ch then
+        begin
+          Result := not FNegative;
+          Exit;
+        end;
+
+        P := P.Next;
+        while P <> nil do
+        begin
+          if P.Ch = Ch then
+          begin
+            Result := not FNegative;
+            Exit;
+          end;
+          P := P.Next;
+        end;
+      end
+      else
+      begin
+        if FNegative then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end;
+    end;
+
     if FCharRange.Count > 0 then
     begin
       if not FNegative then
-        Result := FCharRange.IsMatch(Ch)
+        Result := FCharRange.Compare(Ch) = 0
       else
-        Result := not FCharRange.IsMatch(Ch);
+        Result := FCharRange.Compare(Ch) <> 0;
 
       if Result then
         Exit;
@@ -6202,7 +6043,7 @@ function TRECharClassCode.IsExists(AStr: PWideChar): Boolean;
 var
   L: Integer;
 begin
-  Result := IsEqualFull(AStr, L);
+  Result := IsEqual(AStr, L);
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -6343,14 +6184,12 @@ function TRECharClassCode.IsOverlap(ACode: TRECode): Boolean;
 var
   L: Integer;
 begin
-  Result := True;
+  Result := FNegative;
 
   if ACode is TRELiteralCode then
   begin
     if IsEqual((ACode as TRELiteralCode).FSubP, L) then
-      Result := True
-    else
-      Result := False;
+      Result := not Result;
   end;
 end;
 
@@ -9743,8 +9582,6 @@ begin
   end
   else
     Result := CharClass;
-
-  CharClass.Build;
 end;
 
 function TREParser.NewLiteralCode(const Str: REString;
@@ -10680,21 +10517,22 @@ function TREOptimizeData.DebugOutput: REString;
 
 begin
   Result := Format('(%s) "%s" at (%d, %d), branch:%d',
-    [GetKindStr(FKind), FState.Code.GetDebugStr,
-      FOffset.Min, FOffset.Max, FState.BranchIndex])
+    [GetKindStr(FKind), FCode.GetDebugStr,
+      FOffset.Min, FOffset.Max, FBranchLevel])
 end;
 {$ENDIF SKREGEXP_DEBUG}
 
 { TREOptimizeDataCollection }
 
-function TREOptimizeDataCollection.Add(Value: TRENFAState;
-  AKind: TREOptimizeDataKind; AOffset: TRETextPosRec): Integer;
+function TREOptimizeDataCollection.Add(Value: TRECode;
+  AKind: TREOptimizeDataKind; ABranchLevel: Integer; AOffset: TRETextPosRec): Integer;
 var
   Item: TREOptimizeData;
 begin
   Item := TREOptimizeData.Create;
-  Item.State := Value;
+  Item.Code := Value;
   Item.Kind := AKind;
+  Item.BranchLevel := ABranchLevel;
   Item.Offset := AOffset;
   Result := FList.Add(Item);
 end;
@@ -10744,37 +10582,39 @@ begin
   for I := 0 to FList.Count - 1 do
   begin
     if (GetItem(I).Kind = odkNormal) or (GetItem(I).Kind = odkExist) or
-      ((GetItem(I).Kind = odkTail) and (GetItem(I).State.BranchIndex > 0)) then
+      ((GetItem(I).Kind = odkTail) and (GetItem(I).BranchLevel > 0)) then
     begin
-      if BranchBuf[GetItem(I).State.BranchIndex] = nil then
+      if BranchBuf[GetItem(I).BranchLevel] = nil then
       begin
-        BranchBuf[GetItem(I).State.BranchIndex] := GetItem(I);
+        BranchBuf[GetItem(I).BranchLevel] := GetItem(I);
       end
       else
       begin
-        if (BranchBuf[GetItem(I).State.BranchIndex].Offset.Min = -1) and
+        if (BranchBuf[GetItem(I).BranchLevel].Offset.Min = -1) and
             (GetItem(I).Offset.Min > -1) then
         begin
           //offset.min が -1 でなければマッチ位置を特定できる
-          BranchBuf[GetItem(I).State.BranchIndex] := GetItem(I);
+          BranchBuf[GetItem(I).BranchLevel] := GetItem(I);
         end
-        else if (BranchBuf[GetItem(I).State.BranchIndex].State.Code is TRELiteralCode) and
-            (GetItem(I).State.Code is TRELiteralCode) then
+        else if (BranchBuf[GetItem(I).BranchLevel].Code is TRELiteralCode) and
+            (GetItem(I).Code is TRELiteralCode) then
         begin
           //文字列が長い方がマッチ位置の候補を絞り込める
-          if (BranchBuf[GetItem(I).State.BranchIndex].State.Code.Length < GetItem(I).State.Code.Length) then
-            BranchBuf[GetItem(I).State.BranchIndex] := GetItem(I)
-          else if IsWordA(ToUChar((
-              BranchBuf[GetItem(I).State.BranchIndex].State.Code as TRELiteralCode).FSubP)) and
-              (not IsWordA(ToUChar((GetItem(I).State.Code as TRELiteralCode).FSubP))) then
+          if (BranchBuf[GetItem(I).BranchLevel].Code.Length < GetItem(I).Code.Length) then
+            BranchBuf[GetItem(I).BranchLevel] := GetItem(I)
+          else if (((BranchBuf[GetItem(I).BranchLevel].Code as TRELiteralCode).FSubP^ < #128) and
+            IsWordA(UChar(
+              (BranchBuf[GetItem(I).BranchLevel].Code as TRELiteralCode).FSubP^))) and
+              (not ((GetItem(I).Code as TRELiteralCode).FSubP^ < #128) and
+              IsWordA(UChar((GetItem(I).Code as TRELiteralCode).FSubP^))) then
             //アルファベット以外の文字の方がマッチ位置の候補を絞り込める
-            BranchBuf[GetItem(I).State.BranchIndex] := GetItem(I);
+            BranchBuf[GetItem(I).BranchLevel] := GetItem(I);
         end
         else
         begin
-          if (not (BranchBuf[GetItem(I).State.BranchIndex].State.Code is TRELiteralCode)) and
-              (GetItem(I).State.Code is TRELiteralCode) then
-            BranchBuf[GetItem(I).State.BranchIndex] := GetItem(I);
+          if (not (BranchBuf[GetItem(I).BranchLevel].Code is TRELiteralCode)) and
+              (GetItem(I).Code is TRELiteralCode) then
+            BranchBuf[GetItem(I).BranchLevel] := GetItem(I);
         end;
       end;
     end;
@@ -10821,15 +10661,10 @@ begin
 
   for I := 0 to FList.Count - 1 do
   begin
-    if GetItem(I).FState = nil then
-    begin
-      ADest.Clear;
-      Exit;
-    end;
     if GetItem(I).Kind = odkLead then
     begin
-      if not BranchBuf[GetItem(I).State.BranchIndex] then
-        BranchBuf[GetItem(I).State.BranchIndex] := True;
+      if not BranchBuf[GetItem(I).BranchLevel] then
+        BranchBuf[GetItem(I).BranchLevel] := True;
 
       ADest.Add(GetItem(I));
     end;
@@ -10861,12 +10696,12 @@ begin
 
   for I := 0 to FList.Count - 1 do
   begin
-    if (GetItem(I).Kind = odkTail) and (GetItem(I).State.BranchIndex = 0) then
+    if (GetItem(I).Kind = odkTail) and (GetItem(I).BranchLevel = 0) then
     begin
-      if (P = -1) or (GetItem(I).State.Code.Length > Len) then
+      if (P = -1) or (GetItem(I).Code.Length > Len) then
       begin
         P := I;
-        Len := GetItem(I).State.Code.Length;
+        Len := GetItem(I).Code.Length;
       end;
     end;
   end;
@@ -10893,7 +10728,7 @@ var
   I, L: Integer;
 begin
   for I := 0 to Count - 1 do
-    if Get(I).FState.Code.IsEqual(AStr, L) then
+    if Get(I).Code.IsEqual(AStr, L) then
     begin
       Result := True;
       Exit;
@@ -11043,21 +10878,20 @@ var
 begin
 {$IFDEF SKREGEXP_DEBUG}
   NFACode := TRENFAState.Create(FRegExp);
-  NFACode.Index := ATransFrom;
-{$ELSE SKREGEXP_DEBUG}
+{$ELSE}
   NFACode := TRENFAState.Create;
+{$ENDIF SKREGEXP_DEBUG}
+{$IFDEF SKREGEXP_DEBUG}
+  NFACode.Index := ATransFrom;
 {$ENDIF}
   NFACode.Kind := AKind;
   NFACode.Code := ACode;
   NFACode.TransitTo := ATransTo;
-  NFACode.Next := FStateList[ATransFrom];
+  NFACode.Next := TRENFAState(FStateList[ATransFrom]);
   NFACode.Min := AMin;
   NFACode.Max := AMax;
   NFACode.BranchIndex := ABranchIndex;
   NFACode.GroupIndex := AGroupIndex;
-  NFACode.MatchKind := lkNone;
-  NFACode.ExtendTo := -1;
-  NFACode.LoopIndex := -1;
 
   FStateList[ATransFrom] := NFACode;
   Result := NFACode;
@@ -11083,8 +10917,8 @@ begin
   FExitStateIndex := 0;
   FGroupCount := 0;
   FHasAccept := False;
+  FBranchIndex := 0;
   FInBranch := False;
-  FInSecondBranch := False;
 
   FOptimizeData.Clear;
   FRegExp.FLoopState.Clear;
@@ -11128,10 +10962,11 @@ begin
   FEntryStack := TList.Create;
   FExitStack := TList.Create;
   FStateStack := TList.Create;
-  FBranchStack := TREBranchStateStack.Create;
+  FBranchStack := TList.Create;
   FEntryStackIndex := 0;
   FExitStateIndex := 0;
   FStateStackIndex := 0;
+  FBranchIndex := 0;
 end;
 
 destructor TRENFA.Destroy;
@@ -11160,29 +10995,13 @@ procedure TRENFA.GenerateStateList(ACode: TRECode; AEntry, AWayout: Integer;
       Result := odkNormal;
   end;
 
-  function HasLiteral(Code: TRECode): Boolean;
-  begin
-    if Code is TREBinCode then
-    begin
-      if (Code as TREBinCode).Op = opUnion then
-      begin
-        Result := HasLiteral((Code as TREBinCode).Left) or
-          HasLiteral((Code as TREBinCode).Right);
-      end
-      else
-        Result := False;
-    end
-    else
-      Result := Code is TRELiteralCode;
-  end;
-
 var
   State1, State2, Index: Integer;
   LMin, LMax, LLoopIndex: Integer;
   LOffset, ROffset, LLen, RLen: TRETextPosRec;
   SubCode: TRECode;
   NFACode: TRENFAState;
-  BranchState: TREBranchState;
+  BranchState: PREBranchStateRec;
   IsPush: Boolean;
   SubOption: TREOptions;
   LLoopState: TRELoopStateItem;
@@ -11195,33 +11014,18 @@ begin
         opUnion:
           begin
             IsPush := False;
-            if (FBranchStack.Count = 0) or (FBranchStack.State <> AEntry) then
+            if (FBranchStack.Count = 0) or
+              (PREBranchStateRec(FBranchStack[FBranchStack.Count - 1]).State <> AEntry) then
             begin
-              if not FInBranch and FInSecondBranch then
-                FInBranch := True;
-
               IsPush := True;
-              BranchState := TREBranchState.Create;
-              BranchState.State := AEntry;
+              New(BranchState);
+              BranchState^.State := AEntry;
+              BranchState^.Count := 0;
+              FBranchStack.Add(BranchState);
 
-              if HasLiteral(Left) and HasLiteral(Right) then
-              begin
-                SubCode := TRETrieCode.Create(FRegExp, []);
-                FRegExp.FCodeList.Add(SubCode);
-                BranchState.Code := SubCode;
-                NFACode := AddTransition(
-                  nkTrie, AEntry, AWayout, SubCode, AGroupIndex, ABranchLevel);
-
-                if not FHasAccept then
-                begin
-                  if not AState.IsNullMatch and (FBEntryState = AEntry) then
-                    FOptimizeData.Add(NFACode, odkLead, AOffset);
-                end;
-              end;
-              if FBranchStack.Count = 0 then
-                Inc(ABranchLevel);
-
-              FBranchStack.Push(BranchState);
+              Inc(ABranchLevel);
+              Inc(FBranchIndex);
+              FInBranch := (FBranchIndex > 1) or (FBranchStack.Count > 1);
             end;
 
             RLen.Min := 0;
@@ -11232,34 +11036,19 @@ begin
             ROffset := AOffset;
             LOffset := AOffset;
 
-            if (FBranchStack.Code <> nil) and (Right is TRELiteralCode) then
-            begin
-              RLen := (Right as TRELiteralCode).CharLength;
-              ROffset := (Right as TRELiteralCode).CharLength;
-              (FBranchStack.Code as TRETrieCode).Add(Right);
-            end
-            else
-              GenerateStateList(Right, AEntry, AWayout, ABranchLevel, RLen,
-                ROffset, AGroupIndex, AState);
+            GenerateStateList(Right, AEntry, AWayout, ABranchLevel, RLen,
+              ROffset, AGroupIndex, AState);
 
             Inc(ABranchLevel);
+            GenerateStateList(Left, AEntry, AWayout, ABranchLevel, LLen,
+              LOffset, AGroupIndex, AState);
 
-            if (FBranchStack.Code <> nil) and (Left is TRELiteralCode) then
-            begin
-              LLen := (Left as TRELiteralCode).CharLength;
-              LOffset := (Left as TRELiteralCode).CharLength;
-              (FBranchStack.Code as TRETrieCode).Add(Left);
-            end
-            else
-              GenerateStateList(Left, AEntry, AWayout, ABranchLevel, LLen,
-                LOffset, AGroupIndex, AState);
-
-            if (AMatchLen.Min > -1) and (LLen.Min > -1) and (RLen.Min > -1) then
+            if (AMatchLen.Min > -1) and (LLen.Min > -1) then
               Inc(AMatchLen.Min, SkRegExpW.Min(RLen.Min, LLen.Min))
             else
               AMatchLen.Min := -1;
 
-            if (AMatchLen.Max > -1) and (LLen.Max > -1) and (RLen.Max > -1) then
+            if (AMatchLen.Max > -1) and (LLen.Max > -1) then
               Inc(AMatchLen.Max, SkRegExpW.Max(RLen.Max, LLen.Max))
             else
               AMatchLen.Max := -1;
@@ -11274,21 +11063,17 @@ begin
             else
               AOffset.Max := -1;
 
-            if not FInBranch then
-              FRegExp.FBranchCount :=
-                SkRegExpW.Max(FRegExp.FBranchCount, ABranchLevel);
+            FRegExp.FBranchCount :=
+              SkRegExpW.Max(FRegExp.FBranchCount, ABranchLevel);
+            Dec(ABranchLevel);
 
             if IsPush then
             begin
-              if FBranchStack.Code <> nil then
-                (FBranchStack.Code as TRETrieCode).FSearch.Compile;
+              Dec(ABranchLevel);
 
-              FBranchStack.Pop;
-
-              if not FInSecondBranch and (FBranchStack.Count = 0) then
-                FInSecondBranch := True;
-              if FBranchStack.Count = 0 then
-                ABranchLevel := 0;
+              BranchState := FBranchStack[FBranchStack.Count - 1];
+              Dispose(BranchState);
+              FBranchStack.Delete(FBranchStack.Count - 1);
             end;
           end;
         opConcat:
@@ -11311,15 +11096,15 @@ begin
               SubOption := TREAnyCharCode(Left).FOptions;
               if not(roSingleLine in SubOption) then
                 Include(SubOption, roMultiLine);
-              SubCode := TRELineHeadCode.Create(FRegExp, SubOption);
 
+              SubCode := TRELineHeadCode.Create(FRegExp, SubOption);
               FRegExp.FCodeList.Add(SubCode);
 
-              NFACode := AddTransition(nkAnchor, AEntry, State1, SubCode, AGroupIndex,
+              AddTransition(nkNormal, AEntry, State1, SubCode, AGroupIndex,
                 ABranchLevel, 0, CONST_LoopMax);
 
               if not FInBranch then
-                FOptimizeData.Add(NFACode, odkLead, AOffset);
+                FOptimizeData.Add(SubCode, odkLead, ABranchLevel, AOffset);
 
               NFACode := AddTransition(nkStar, State1, AWayout, Left, AGroupIndex,
                 ABranchLevel, 0, CONST_LoopMax);
@@ -11349,7 +11134,7 @@ begin
               if AState.IsJoinMatch and not Left.IsVariable and (FBEntryState = AEntry) then
               begin
                 if not AState.IsNullMatch and not FInBranch then
-                  FOptimizeData.Add(NFACode, odkLead, AOffset);
+                  FOptimizeData.Add(Left, odkLead, ABranchLevel, AOffset);
               end;
             end;
 
@@ -11366,29 +11151,6 @@ begin
               AOffset.Min := -1;
 
             AOffset.Max := -1;
-
-            LLoopState := TRELoopStateItem.Create;
-            LLoopIndex := FRegExp.FLoopState.Add(LLoopState);
-
-            NFACode.MatchKind := MatchKind;
-            NFACode.ExtendTo := AWayout;
-            NFACode.LoopIndex := LLoopIndex;
-            LLoopState.NFACode := NFACode;
-          end;
-        opQuest:
-          begin
-            NFACode := AddTransition(nkQuest, AEntry, AWayout, Left, AGroupIndex,
-              ABranchLevel, 0, 1);
-
-            if (AMatchLen.Max > -1) and (Left.CharLength.Max > -1) then
-              Inc(AMatchLen.Max, Left.CharLength.Max)
-            else
-              AMatchLen.Max := -1;
-
-            if (AOffset.Max > -1) and (Left.CharLength.Max > -1) then
-              Inc(AOffset.Max, Left.CharLength.Max)
-            else
-              AOffset.Max := -1;
 
             LLoopState := TRELoopStateItem.Create;
             LLoopIndex := FRegExp.FLoopState.Add(LLoopState);
@@ -11416,7 +11178,7 @@ begin
               if (FMin > 0) and AState.IsJoinMatch and not Left.IsVariable then
               begin
                 if not AState.IsNullMatch and not FInBranch then
-                  FOptimizeData.Add(NFACode, GetAnchorKind(AState), AOffset);
+                  FOptimizeData.Add(Left, GetAnchorKind(AState), ABranchLevel, AOffset);
               end;
             end;
 
@@ -11510,54 +11272,46 @@ begin
           end;
         opGroup:
           begin
-            if FRegExp.FNoUseReference then
-            begin
-              GenerateStateList(Left, AEntry, AWayout, ABranchLevel, AMatchLen, AOffset,
-                GroupIndex, AState);
-            end
+            State1 := GetNumber;
+            State2 := GetNumber;
+
+            AddTransition(nkGroupBegin, AEntry, State1, nil, AGroupIndex, ABranchLevel);
+            NFACode := FStateList[AEntry];
+            NFACode.GroupIndex := GroupIndex;
+            if GroupIndex > 0 then
+              FRegExp.FGroups[GroupIndex].GroupBegin := NFACode;
+
+            FStateStack.Add(Pointer(AEntry));
+            Inc(FGroupCount);
+
+            LLen.Min := 0;
+            LLen.Max := 0;
+
+            PushState(AEntry, AWayout, State1, State2);
+            GenerateStateList(Left, State1, State2, ABranchLevel, LLen, AOffset,
+              GroupIndex, AState);
+            PopState;
+
+            FRegExp.FGroups[GroupIndex].CharLength := LLen;
+
+            if (AMatchLen.Min > -1) and (LLen.Min > -1) then
+              Inc(AMatchLen.Min, LLen.Min)
             else
-            begin
-              State1 := GetNumber;
-              State2 := GetNumber;
+              AMatchLen.Min := -1;
 
-              AddTransition(nkGroupBegin, AEntry, State1, nil, AGroupIndex, ABranchLevel);
-              NFACode := FStateList[AEntry];
-              NFACode.GroupIndex := GroupIndex;
-              if GroupIndex > 0 then
-                FRegExp.FGroups[GroupIndex].GroupBegin := NFACode;
+            if (AMatchLen.Max > -1) and (LLen.Max > -1) then
+              Inc(AMatchLen.Max, LLen.Max)
+            else
+              AMatchLen.Max := -1;
 
-              FStateStack.Add(Pointer(AEntry));
-              Inc(FGroupCount);
+            Dec(FGroupCount);
+            FStateStack.Delete(FStateStack.Count - 1);
 
-              LLen.Min := 0;
-              LLen.Max := 0;
-
-              PushState(AEntry, AWayout, State1, State2);
-              GenerateStateList(Left, State1, State2, ABranchLevel, LLen, AOffset,
-                GroupIndex, AState);
-              PopState;
-
-              FRegExp.FGroups[GroupIndex].CharLength := LLen;
-
-              if (AMatchLen.Min > -1) and (LLen.Min > -1) then
-                Inc(AMatchLen.Min, LLen.Min)
-              else
-                AMatchLen.Min := -1;
-
-              if (AMatchLen.Max > -1) and (LLen.Max > -1) then
-                Inc(AMatchLen.Max, LLen.Max)
-              else
-                AMatchLen.Max := -1;
-
-              Dec(FGroupCount);
-              FStateStack.Delete(FStateStack.Count - 1);
-
-              NFACode := AddTransition(nkGroupEnd, State2, AWayout, nil, AGroupIndex,
-                ABranchLevel);
-              NFACode.GroupIndex := GroupIndex;
-              if GroupIndex > 0 then
-                FRegExp.FGroups[GroupIndex].GroupEnd := NFACode;
-            end;
+            NFACode := AddTransition(nkGroupEnd, State2, AWayout, nil, AGroupIndex,
+              ABranchLevel);
+            NFACode.GroupIndex := GroupIndex;
+            if GroupIndex > 0 then
+              FRegExp.FGroups[GroupIndex].GroupEnd := NFACode;
           end;
         opNoBackTrack:
           begin
@@ -11589,9 +11343,6 @@ begin
           begin
             AddTransition(nkEmpty, AEntry, AWayout, nil, AGroupIndex,
               ABranchLevel);
-
-            if FBEntryState = AEntry then
-              FOptimizeData.Add(nil,  odkLead, AOffset);
           end;
         opGoSub:
           begin
@@ -11869,7 +11620,14 @@ begin
             NFACode.GroupIndex := GroupIndex;
 
             if FBranchStack.Count > 0 then
-              NFACode.ExtendTo := FBranchStack.State
+            begin
+              NFACode.ExtendTo :=
+                PREBranchStateRec(FBranchStack[FBranchStack.Count - 1]).State;
+              NFACode.Min := PREBranchStateRec
+                (FBranchStack[FBranchStack.Count - 1]).Count;
+              PREBranchStateRec(FBranchStack[FBranchStack.Count - 1]).Count :=
+                PREBranchStateRec(FBranchStack[FBranchStack.Count - 1]).Count + 1;
+            end
             else
               NFACode.ExtendTo := -1;
 
@@ -11893,40 +11651,31 @@ begin
   begin
     if (FBEntryState = AEntry) and (ACode is TRELineHeadCode) then
     begin
-      NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
+      AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
         ABranchLevel);
 
       if not FHasAccept and AState.IsJoinMatch and not FInBranch then
-        FOptimizeData.Add(NFACode, odkLead, AOffset);
+        FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
     end
     else if (AWayout = FBExitState) and (ACode is TRELineTailCode) then
     begin
-      NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
+      AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
         ABranchLevel);
 
       if not FHasAccept and AState.IsJoinMatch and FInBranch then
-        FOptimizeData.Add(NFACode, odkLineTail, AOffset);
-    end
-    else if (AWayout = FBExitState) and
-        ((ACode is TRETextTailCode) or (ACode is TRETextEndCode)) then
-    begin
-      NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
-        ABranchLevel);
-
-      if not FHasAccept and AState.IsJoinMatch and FInBranch then
-        FOptimizeData.Add(NFACode, odkLineTail, AOffset);
+        FOptimizeData.Add(ACode, odkLineTail, ABranchLevel, AOffset);
     end
     else
     begin
       if (ACode is TRELiteralCode) then
       begin
-        NFACode := AddTransition(nkChar, AEntry, AWayout, ACode, AGroupIndex,
+        AddTransition(nkChar, AEntry, AWayout, ACode, AGroupIndex,
           ABranchLevel);
 
         if not FHasAccept then
         begin
           if not AState.IsNullMatch and not FInBranch then
-            FOptimizeData.Add(NFACode, GetAnchorKind(AState), AOffset);
+            FOptimizeData.Add(ACode, GetAnchorKind(AState), ABranchLevel, AOffset);
 
           if AOffset.Min > -1 then
             Inc(AOffset.Min, ACode.CharLength.Min);
@@ -11943,22 +11692,22 @@ begin
       end
       else if (ACode is TRETextHeadCode) then
       begin
-        NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
+        AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
           ABranchLevel);
 
         if not FHasAccept then
           if AState.IsJoinMatch and (FBEntryState = AEntry) then
             if not AState.IsNullMatch and not FInBranch then
-              FOptimizeData.Add(NFACode, odkLead, AOffset);
+              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
       end
       else if (ACode is TRETextTailCode) or (ACode is TRETextEndCode) then
       begin
-        NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
+        AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
           ABranchLevel);
 
         if not FHasAccept then
           if AState.IsJoinMatch and (AEntry = FBEntryState) and not FInBranch then
-            FOptimizeData.Add(NFACode, odkTextTail, AOffset)
+            FOptimizeData.Add(ACode, odkTextTail, ABranchLevel, AOffset)
       end
       else if (ACode is TRECalloutCode) then
       begin
@@ -11971,25 +11720,16 @@ begin
       end
       else
       begin
-        if (ACode.CharLength.Min = 0) and (ACode.CharLength.Max = 0) then
-          NFACode := AddTransition(nkAnchor, AEntry, AWayout, ACode, AGroupIndex,
-            ABranchLevel)
-        else if (ACode.CharLength.Min > 0) and (ACode.CharLength.Max > 0) then
-          NFACode := AddTransition(nkChar, AEntry, AWayout, ACode, AGroupIndex,
-            ABranchLevel)
-        else
-          NFACode := AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
-            ABranchLevel);
+        AddTransition(nkNormal, AEntry, AWayout, ACode, AGroupIndex,
+          ABranchLevel);
 
         if not FHasAccept then
         begin
           if (FBEntryState = AEntry) and AState.IsJoinMatch and
-              not ACode.IsVariable and 
-              not (ACode is TREAnyCharCode) and
-              not (ACode is TRECombiningSequence) then
+              not ACode.IsVariable then
           begin
             if not AState.IsNullMatch and not FInBranch then
-              FOptimizeData.Add(NFACode, odkLead, AOffset);
+              FOptimizeData.Add(ACode, odkLead, ABranchLevel, AOffset);
           end;
 
           if (AMatchLen.Min > -1) and (ACode.CharLength.Min > -1) then
@@ -12086,13 +11826,6 @@ begin
               AMatchLen.Min := -1;
 
             AMatchLen.Max := -1;
-          end;
-        opQuest:
-          begin
-            if (AMatchLen.Max > -1) and (Left.CharLength.Max > -1) then
-              Inc(AMatchLen.Max, Left.CharLength.Max)
-            else
-              AMatchLen.Max := -1;
           end;
         opBound:
           begin
@@ -12462,52 +12195,6 @@ begin
     GetItem(I).NestLevel := Index + 1;
 end;
 
-{ TREBranchStateStack }
-
-procedure TREBranchStateStack.Clear;
-begin
-  FList.Clear;
-end;
-
-function TREBranchStateStack.Count: Integer;
-begin
-  Result := FList.Count;
-end;
-
-constructor TREBranchStateStack.Create;
-begin
-  inherited;
-  FList := TObjectList.Create;
-end;
-
-destructor TREBranchStateStack.Destroy;
-begin
-  FList.Free;
-  inherited;
-end;
-
-function TREBranchStateStack.GetCode: TRECode;
-begin
-  Result := (FList[FCount - 1] as TREBranchState).FCode;
-end;
-
-function TREBranchStateStack.GetState: Integer;
-begin
-  Result := (FList[FCount - 1] as TREBranchState).FState;
-end;
-
-procedure TREBranchStateStack.Pop;
-begin
-  FList.Delete(FCount - 1);
-  Dec(FCount);
-end;
-
-procedure TREBranchStateStack.Push(const Value: TREBranchState);
-begin
-  FList.Add(Value);
-  Inc(FCount);
-end;
-
 { TGroup }
 
 procedure TGroup.Assign(Source: TGroup);
@@ -12622,20 +12309,6 @@ begin
   FEndP := nil;
   FStartPBuf := nil;
   FSuccess := False;
-end;
-
-procedure TGroup.SetAlwaysSuccess(const Value: Boolean);
-begin
-  if FAlwaysSuccess <> Value then
-  begin
-    FAlwaysSuccess := Value;
-    if FAlwaysSuccess then
-    begin
-      FSuccess := True;
-      if FEndP = nil then
-        SetEndP(FStartPBuf);
-    end;
-  end;
 end;
 
 procedure TGroup.SetEndP(const Value: PWideChar);
@@ -13663,7 +13336,7 @@ var
       FLeadMap.Add(ToUChar((Code as TRELiteralCode).FSubP), (Code as TRELiteralCode).FCompareOptions);
     end
     else if (Code is TRECharClassCode) and (Code as TRECharClassCode).SimpleClass and
-        (FLeadMap.FNegative = (Code as TRECharClassCode).FNegative) then
+        not (Code as TRECharClassCode).FNegative then
     begin
       FLeadMap.Add((Code as TRECharClassCode));
     end
@@ -13687,7 +13360,7 @@ begin
   while NFACode <> nil do
   begin
     case NFACode.Kind of
-      nkChar, nkNormal, nkTrie:
+      nkChar, nkNormal:
         AddMap(NFACode.Code, NoMap);
       nkStar:
         begin
@@ -13819,10 +13492,10 @@ begin
     lcmFirstBranch:
       begin
         P := AStr;
-        if FLeadTrie.TrieSearch.Exec(P, FRegExp.FMatchEndP - P) then
+        if FACSearch.Exec(P, FRegExp.FMatchEndP - P) then
         begin
           repeat
-            StartP := FLeadTrie.TrieSearch.StartP;
+            StartP := FACSearch.StartP;
 
             I := FLeadCharOffset.Max;
 
@@ -13831,7 +13504,7 @@ begin
               P := StartP;
 
               if I > 0 then
-                CharPrev(P, FRegExp.FMatchTopP, I);
+                CharPrev(P, FRegExp.FMatchStartP, I);
 
               if MatchEntry(P) then
               begin
@@ -13846,9 +13519,9 @@ begin
             end;
 
             if FHasSkip and (FSkipP <> nil) then
-              FLeadTrie.TrieSearch.SkipP := FSkipP;
+              FACSearch.SkipP := FSkipP;
 
-          until not FLeadTrie.TrieSearch.ExecNext;
+          until not FACSearch.ExecNext;
         end;
       end;
     lcmSimple:
@@ -13860,13 +13533,13 @@ begin
           FGroups[0].EndP := FLeadStrings.Search.MatchP + FLeadStrings.Search.MatchLen;
         end;
       end;
-    lcmAhoCrasick:
+    lcmSimpleBranch:
       begin
-        if FLeadTrie.TrieSearch.Exec(AStr, FRegExp.FMatchEndP - AStr) then
+        if FACSearch.Exec(AStr, FRegExp.FMatchEndP - AStr) then
         begin
           Result := True;
-          FGroups[0].StartP := FLeadTrie.TrieSearch.StartP;
-          FGroups[0].EndP := FLeadTrie.TrieSearch.EndP;
+          FGroups[0].StartP := FACSearch.StartP;
+          FGroups[0].EndP := FACSearch.EndP;
         end;
       end;
     lcmTextTop:
@@ -14207,13 +13880,6 @@ begin
     FRegExp.FLastRegErrorIndex := FRegExp.FLastRegMarkIndex;
 end;
 
-function TREMatchEngine.MatchGoSub(var EntryCode: TRENFAState;
-  const EndCode: TRENFAState; Stack: TREBackTrackStack;
-  var AStr: PWideChar): Boolean;
-begin
-  Result := MatchPrim(EntryCode, EndCode, Stack, AStr, mmSpecial);
-end;
-
 function TREMatchEngine.MatchLoop(EntryCode: TRENFAState;
   const EndCode: TRENFAState; Stack: TREBackTrackStack;
   var AStr: PWideChar): Boolean;
@@ -14229,7 +13895,7 @@ label
 var
   LStackIndex: Integer;
   I, Len, LMin, LMax, Index, BaseIndex, LLoopIndex: Integer;
-  EntryCode, ExitCode, NextCode, EndCode, SubCode, LoopCode, BranchCode: TRENFAState;
+  EntryCode, NextCode, EndCode, SubCode, LoopCode, BranchCode: TRENFAState;
   LMatchKind: TRELoopKind;
   SubP, BufP, SaveP:PWideChar;
   IsMatched, IsLoopMatched: Boolean;
@@ -14308,15 +13974,7 @@ begin
 {$IFDEF SKREGEXP_DEBUG}
       if FRegExp.FShowMatchProcess then
       begin
-        if FRegExp.FHasGoSub and (FSubStack.Count > 0) and
-              (FSubStack[FSubStack.Count - 1].EndCode = NFACode) and
-              (NFACode.Kind = nkGroupEnd) then
-        begin
-          FRegExp.FMatchProcess.Add(Format(#0009'Matched GOSUB [NestLevel: %d]',
-            [FSubStack.Index + 1]));
-        end
-        else
-          MatchProcessAdd(NFACode, AStr, FRegExp.FSubStack.Index);
+        MatchProcessAdd(NFACode, AStr, FRegExp.FSubStack.Index);
       end;
 {$ENDIF}
       case NFACode.Kind of
@@ -14331,7 +13989,7 @@ begin
             else
               NFACode := nil;
           end;
-        nkNormal, nkAnchor, nkCallout: //nkAnchor
+        nkNormal, nkCallout: //nkAnchor
           begin
             if NFACode.Code.IsEqual(AStr, Len) then
             begin
@@ -14341,22 +13999,21 @@ begin
             else
               NFACode := nil;
           end;
-        nkTrie:
-          begin
-            if NFACode.Code.IsEqual(AStr, Len) then
-            begin
-              if NFACode.Code.TrieSearch.MatchCount > 0 then
-                Stack.Push(NFACode, AStr, True);
-              Inc(AStr, Len);
-              NFACode := FStateList[NFACode.TransitTo];
-            end
-            else
-              NFACode := nil;
-          end;
+//        nkTrie:
+//          begin
+//            if NFACode.Code.IsEqual(AStr, Len) then
+//            begin
+//              if NFACode.Code.TrieSearch.MatchCount > 0 then
+//                Stack.Push(NFACode, AStr, True);
+//              Inc(AStr, Len);
+//              NFACode := FStateList[NFACode.TransitTo];
+//            end
+//            else
+//              NFACode := nil;
+//          end;
         nkStar, nkPlus:
           begin
             SubP := AStr;
-            SaveP := AStr;
             LMatchKind := NFACode.MatchKind;
             NextCode := FStateList[NFACode.TransitTo];
             EntryCode := NFACode;
@@ -14431,8 +14088,6 @@ begin
                 begin
                   Stack.Remove(BaseIndex);
                   NFACode := NextCode;
-                  if not FRegExp.FHasReference and (AStr - SaveP > 0) then
-                    FSkipP := AStr;
                 end;
               end;
             end
@@ -14515,9 +14170,6 @@ begin
               begin
                 Stack.Remove(BaseIndex);
                 NFACode := NextCode;
-                if not FRegExp.FHasReference and
-                    (AStr - SaveP > 0) and (LMin > 0) then
-                  FSkipP := AStr;
               end;
             end
             else
@@ -14537,11 +14189,11 @@ begin
 
             // ループの終了を登録
             EndCode := FStateList[NFACode.ExtendTo];
-            ExitCode := FStateList[NFACode.TransitTo];
+            NFACode := FStateList[NFACode.TransitTo];
             // ループの次を登録
-            NextCode := FStateList[ExitCode.TransitTo];
+            NextCode := FStateList[NFACode.TransitTo];
             // ループの入口を登録
-            EntryCode := ExitCode.Next;
+            EntryCode := NFACode.Next;
 
             if (NextCode.Kind = nkLoopEnd) then
               BranchCode := GetBranchCode(NextCode, LoopCode);
@@ -14803,10 +14455,8 @@ begin
 {$ENDIF}
               end;
               Stack.Remove(BaseIndex);
+
               NFACode := NextCode;
-              if not FRegExp.FHasReference and
-                  (AStr - SaveP > 0) and (LMin > 0) then
-                FSkipP := AStr;
             end;
           end;
         nkEnd:
@@ -14893,9 +14543,21 @@ begin
           end;
         nkGroupEnd:
           begin
+            FGroups[NFACode.GroupIndex].EndP := AStr;
+{$IFDEF SKREGEXP_DEBUG}
+            if FRegExp.FShowMatchProcess and FRegExp.ShowCaptureHistory then
+              FRegExp.FMatchProcess.Add(Format(#0009#0009'Cap%d:"%s" [Index:%d, Length:%d]',
+                [NFACode.GroupIndex, FRegExp.EncodeEscape(FGroups[NFACode.GroupIndex].Strings),
+                FGroups[NFACode.GroupIndex].Index, FGroups[NFACode.GroupIndex].Length]));
+{$ENDIF SKREGEXP_DEBUG}
             if FRegExp.FHasGoSub and (FSubStack.Count > 0) and
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
+{$IFDEF SKREGEXP_DEBUG}
+              if FRegExp.FShowMatchProcess then
+                FRegExp.FMatchProcess.Add(Format(#0009#0009'NestLevel: %d',
+                  [FSubStack.Index + 1]));
+{$ENDIF SKREGEXP_DEBUG}
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
               FRegExp.FGroupStack.Pop(FGroups);
               FLoopState.Pop;
@@ -14903,13 +14565,6 @@ begin
             end
             else
             begin
-{$IFDEF SKREGEXP_DEBUG}
-            if FRegExp.FShowMatchProcess and FRegExp.ShowCaptureHistory then
-              FRegExp.FMatchProcess.Add(Format(#0009#0009'Cap%d:"%s" [Index:%d, Length:%d]',
-                [NFACode.GroupIndex, FRegExp.EncodeEscape(FGroups[NFACode.GroupIndex].Strings),
-                FGroups[NFACode.GroupIndex].Index, FGroups[NFACode.GroupIndex].Length]));
-{$ENDIF SKREGEXP_DEBUG}
-              FGroups[NFACode.GroupIndex].EndP := AStr;
               NFACode := FStateList[NFACode.TransitTo];
             end;
           end;
@@ -14944,7 +14599,6 @@ begin
               NextCode := FStateList[NFACode.TransitTo];
 
               EntryCode := FGroups[Index].GroupBegin;
-              EntryCode := FStateList[EntryCode.TransitTo];
               EndCode := FGroups[Index].GroupEnd;
 
               Stack.Push(nil, nil, False);
@@ -15259,31 +14913,25 @@ procedure TREMatchEngine.MatchProcessAdd(NFACode: TRENFAState; AStr: PWideChar;
   Level: Integer);
 var
   S: REString;
-  LeftS, RightS: REString;
-  CurrentPosition: Integer;
+  StartMatch, CurrentPosition: Integer;
 begin
-  CurrentPosition := AStr - FRegExp.FTextTopP;
+  CurrentPosition := AStr - FRegExp.FTextTopP + 1;
+  StartMatch := FGroups[0].StartP - FRegExp.FTextTopP + 1;
 
   S := FRegExp.InputString;
+  if Length(S) > 40 then
+    Exit;
 
-  if CurrentPosition > 0 then
-  begin
-    LeftS := AnsiLeftStr(S, CurrentPosition);
-    LeftS := AnsiRightStr(LeftS, 5);
-  end
-  else
-    LeftS := '';
+  Insert('>##TAB##', S, CurrentPosition);
+  Insert('<', S, StartMatch);
 
-  RightS := AnsiMidStr(S, CurrentPosition + 1, MaxInt);
-  RightS := AnsiLeftStr(RightS, 5);
+  S := FRegExp.EncodeEscape(S);
 
-  S := '<' + FRegExp.EncodeEscape(LeftS) + '> <' +
-    FRegExp.EncodeEscape(RightS) + '>';
+  S := StringReplace(S, '##TAB##', #0009, [rfReplaceAll]);
 
   FRegExp.FMatchProcess.Add(Format('%3d %s | %2d: %s[NestLevel:%d]',
-    [CurrentPosition, S, NFACode.Index, NFACode.GetString, Level + 1]));
+    [CurrentPosition - 1, S, NFACode.Index, NFACode.GetString, Level + 1]));
 end;
-
 {$ENDIF SKREGEXP_DEBUG}
 
 procedure TREMatchEngine.Optimize;
@@ -15424,9 +15072,9 @@ begin
 
   if Code <> nil then
   begin
-    if (Code.State.Code is TRELiteralCode) then
+    if (Code.Code is TRELiteralCode) then
     begin
-      FAnchorStrings := Code.State.Code;
+      FAnchorStrings := Code.Code;
       FAnchorOffset := Code.FOffset;
 
       if (FAnchorOffset.Min >= 0) and (FAnchorOffset.Max >= 0) then
@@ -15450,9 +15098,9 @@ begin
 
       if (SubList.Count = 1) then
       begin
-        if (SubList[0].State.Code is TRELiteralCode) then
+        if (SubList[0].Code is TRELiteralCode) then
         begin
-          FAnchorStrings := SubList[0].State.Code;
+          FAnchorStrings := SubList[0].Code;
           FAnchorOffset := SubList[0].Offset;
 
           if (FAnchorOffset.Min >= 0) and (FAnchorOffset.Max >= 0) then
@@ -15465,9 +15113,9 @@ begin
       begin
         for I := 0 to SubList.Count - 1 do
         begin
-          if (SubList[I].State.Code is TRELiteralCode) then
+          if (SubList[I].Code is TRELiteralCode) then
           begin
-            FACSearch.Add(SubList[I].State.Code);
+            FACSearch.Add(SubList[I].Code);
           end
           else
           begin
@@ -15475,7 +15123,7 @@ begin
             Exit;
           end;
 
-          if (not IsBranch) and (SubList[I].State.BranchIndex <> 0) then
+          if (not IsBranch) and (SubList[I].BranchLevel <> 0) then
             IsBranch := True;
 
           if SubList[I].Offset.Min <> -1 then
@@ -15489,7 +15137,7 @@ begin
             FAnchorOffset.Min := -1;
 
           if SubList[I].Offset.Max <> -1 then
-            FAnchorOffset.Max := Max(SubList[I].Offset.Max, FAnchorOffset.Max)
+            FAnchorOffset.Max := Max(SubList[I].Offset.Min, FAnchorOffset.Max)
           else
             FAnchorOffset.Max := -1;
         end;
@@ -15526,20 +15174,39 @@ procedure TREMatchEngine.SetupLeadStrings;
 var
   I: Integer;
   NFACode, NextCode: TRENFAState;
-  NoMap: Boolean;
+  IsLiteral, NoMap: Boolean;
   LineHeadCount, TextHeadCount: Integer;
   LiteralCount: Integer;
 begin
+  IsLiteral := False;
+
   FOptimizeData.GetLeadCode(FRegExp.FBranchCount, FLeadCode);
 
   if FLeadCode.Count = 1 then
   begin
     FLeadCharOffset := FLeadCode[0].Offset;
 
-    if (FLeadCode[0].State.Code is TRELiteralCode) then
+    if (FLeadCode[0].Code is TRELiteralCode) then
     begin
-      FLeadStrings := FLeadCode[0].State.Code;
+      FLeadStrings := FLeadCode[0].Code;
+      IsLiteral := True;
+    end
+    else if (FLeadCode[0].Code is TRELineHeadCode) then
+    begin
+      if not(roMultiLine in (FLeadCode[0].Code as TRELineHeadCode).FOptions) then
+        FLeadCharMode := lcmTextTop
+      else
+        FLeadCharMode := lcmLineTop;
+      Exit;
+    end
+    else if (FLeadCode[0].Code is TRETextHeadCode) then
+    begin
+      FLeadCharMode := lcmTextTop;
+      Exit;
+    end;
 
+    if IsLiteral then
+    begin
       NFACode := FStateList[FRegExp.FEntryState];
       NextCode := FStateList[NFACode.TransitTo];
 
@@ -15548,49 +15215,7 @@ begin
         FLeadCharMode := lcmSimple
       else
         FLeadCharMode := lcmFirstLiteral;
-    end
-    else if (FLeadCode[0].State.Code is TRETrieCode) then
-    begin
-      NFACode := FStateList[FRegExp.FEntryState];
-      NextCode := FStateList[NFACode.TransitTo];
-
-      if (NFACode.Kind = nkTrie) and (NFACode.Next = nil) and
-          (NextCode.Kind = nkEnd) then
-      begin
-        FLeadCharMode := lcmAhoCrasick;
-        FLeadTrie := (FLeadCOde[0].State.Code as TRETrieCode);
-      end
-      else
-      begin
-        FLeadTrie := FLeadCode[0].State.Code;
-        FLeadCharMode := lcmFirstBranch;
-      end;
-    end
-    else if (FLeadCode[0].State.Code is TRELineHeadCode) then
-    begin
-      if not(roMultiLine in (FLeadCode[0].State.Code as TRELineHeadCode).FOptions) then
-        FLeadCharMode := lcmTextTop
-      else
-        FLeadCharMode := lcmLineTop;
-      Exit;
-    end
-    else if (FLeadCode[0].State.Code is TRETextHeadCode) then
-    begin
-      FLeadCharMode := lcmTextTop;
-      Exit;
     end;
-
-//    if IsLiteral then
-//    begin
-//      NFACode := FStateList[FRegExp.FEntryState];
-//      NextCode := FStateList[NFACode.TransitTo];
-//
-//      if (NFACode.Kind = nkChar) and (NFACode.Next = nil) and
-//        (NextCode.Kind = nkEnd) then
-//        FLeadCharMode := lcmSimple
-//      else
-//        FLeadCharMode := lcmFirstLiteral;
-//    end;
   end
   else if FLeadCode.Count > 1 then
   begin
@@ -15600,33 +15225,33 @@ begin
 
     for I := 0 to FLeadCode.Count - 1 do
     begin
-      if FLeadCode[I].State.Code is TRELineHeadCode then
+      if FLeadCode[I].Code is TRELineHeadCode then
       begin
-        if not (roMultiLine in (FLeadCode[I].State.Code as TRELineHeadCode).FOptions) then
+        if not (roMultiLine in (FLeadCode[I].Code as TRELineHeadCode).FOptions) then
           Inc(TextHeadCount)
         else
           Inc(LineHeadCount)
       end
-      else if FLeadCode[I].State.Code is TRETextHeadCode then
+      else if FLeadCode[I].Code is TRETextHeadCode then
       begin
         Inc(TextHeadCount);
       end
-//      else if (FLeadCode[I].Code is TRELiteralCode) then
-//      begin
-//        FACSearch.Add(FLeadCode[I].Code);
-//        if I = 0 then
-//        begin
-//          FAnchorOffset.Min := FLeadCode[I].Offset.Min;
-//          FAnchorOffset.Max := FLeadCode[I].Offset.Max;
-//        end
-//        else
-//        begin
-//          FAnchorOffset.Min := Min(FAnchorOffset.Min, FLeadCode[I].Offset.Min);
-//          FAnchorOffset.Max := Min(FAnchorOffset.Max, FLeadCode[I].Offset.Max);
-//        end;
-//
-//        Inc(LiteralCount);
-//      end
+      else if (FLeadCode[I].Code is TRELiteralCode) then
+      begin
+        FACSearch.Add(FLeadCode[I].Code);
+        if I = 0 then
+        begin
+          FAnchorOffset.Min := FLeadCode[I].Offset.Min;
+          FAnchorOffset.Max := FLeadCode[I].Offset.Max;
+        end
+        else
+        begin
+          FAnchorOffset.Min := Min(FAnchorOffset.Min, FLeadCode[I].Offset.Min);
+          FAnchorOffset.Max := Min(FAnchorOffset.Max, FLeadCode[I].Offset.Max);
+        end;
+
+        Inc(LiteralCount);
+      end
       else
       begin
         FLeadCharMode := lcmNone;
@@ -15651,8 +15276,7 @@ begin
       end;
       FLeadCharMode := lcmSimpleBranch;
     end
-    else
-    if LineHeadCount = FLeadCode.Count then
+    else if LineHeadCount = FLeadCode.Count then
       FLeadCharMode := lcmLineTop
     else if TextHeadCount = FLeadCode.Count then
       FLeadCharMode := lcmTextTop;
@@ -15671,10 +15295,7 @@ begin
         FLeadCharMode := lcmNone;
     end
     else
-    begin
       FLeadCharMode := lcmLeadMap;
-      FLeadMap.Build;
-    end;
   end;
 end;
 
@@ -16286,96 +15907,96 @@ begin
   ADest.EndUpDate;
 end;
 
-procedure TSkRegExp.DumpParse(TreeView: TTreeView);
-
-  function Add(Node: TTreeNode; const S: REString): TTreeNode;
-  begin
-    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
-  end;
-
-  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
-  var
-    ANode: TTreeNode;
-  begin
-    if Code is TREBinCode then
-    begin
-      with Code as TREBinCode do
-      begin
-        case Op of
-          opUnion:
-            ANode := Add(Node, sBinCode_Union);
-          opConcat:
-            ANode := Add(Node, sBinCode_Concat);
-          opEmply:
-            ANode := Add(Node, sBinCode_Emply);
-          opLoop:
-            ANode := Add(Node, sBinCode_Loop);
-          opPlus:
-            ANode := Add(Node, sBinCode_Plus);
-          opStar:
-            ANode := Add(Node, sBinCode_Star);
-          opQuest:
-            ANode := Add(Node, sBinCode_Quest);
-          opBound:
-            ANode := Add(Node, sBinCode_Bound);
-          opLHead:
-            ANode := Add(Node, sBinCode_LHead);
-          opLTail:
-            ANode := Add(Node, sBinCode_LTail);
-          opGroup:
-            ANode := Add(Node, sBinCode_Group);
-          opNoBackTrack:
-            ANode := Add(Node, sBinCode_Suspend);
-          opKeepPattern:
-            ANode := Add(Node, sBinCode_KeepPattern);
-          opFail:
-            ANode := Add(Node, sBinCode_Fail);
-          opPrune:
-            ANode := Add(Node, sBinCode_Prune);
-          opSkip:
-            ANode := Add(Node, sBinCode_Skip);
-          opMark:
-            ANode := Add(Node, sBinCode_Mark);
-          opThen:
-            ANode := Add(Node, sBinCode_Then);
-          opCommint:
-            ANode := Add(Node, sBinCode_Commit);
-          opAccept:
-            ANode := Add(Node, sBinCode_Accept);
-          opAheadMatch:
-            ANode := Add(Node, sBinCode_AheadMatch);
-          opBehindMatch:
-            ANode := Add(Node, sBinCode_BehindMatch);
-          opAheadNoMatch:
-            ANode := Add(Node, sBinCode_AheadNoMatch);
-          opBehindNoMatch:
-            ANode := Add(Node, sBinCode_BehindNoMatch);
-          opGoSub:
-            ANode := Add(Node, sBinCode_GroupCall);
-          opIfMatch:
-            ANode := Add(Node, sBinCode_IfMatch);
-          opIfThen:
-            ANode := Add(Node, sBinCode_IfThen);
-          opDefine:
-            ANode := Add(Node, sBinCode_Define);
-        else
-          raise ESkRegExp.Create(sBinCode_Raise);
-        end;
-        if Left <> nil then
-          DumpParseSub(Left, ANode);
-        if Right <> nil then
-          DumpParseSub(Right, ANode);
-      end;
-    end
-    else
-      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
-  end;
-
-begin
-  TreeView.Items.Clear;
-  DumpParseSub(FCode, nil);
-  TreeView.FullExpand;
-end;
+//procedure TSkRegExp.DumpParse(TreeView: TTreeView);
+//
+//  function Add(Node: TTreeNode; const S: REString): TTreeNode;
+//  begin
+//    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
+//  end;
+//
+//  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
+//  var
+//    ANode: TTreeNode;
+//  begin
+//    if Code is TREBinCode then
+//    begin
+//      with Code as TREBinCode do
+//      begin
+//        case Op of
+//          opUnion:
+//            ANode := Add(Node, sBinCode_Union);
+//          opConcat:
+//            ANode := Add(Node, sBinCode_Concat);
+//          opEmply:
+//            ANode := Add(Node, sBinCode_Emply);
+//          opLoop:
+//            ANode := Add(Node, sBinCode_Loop);
+//          opPlus:
+//            ANode := Add(Node, sBinCode_Plus);
+//          opStar:
+//            ANode := Add(Node, sBinCode_Star);
+//          opQuest:
+//            ANode := Add(Node, sBinCode_Quest);
+//          opBound:
+//            ANode := Add(Node, sBinCode_Bound);
+//          opLHead:
+//            ANode := Add(Node, sBinCode_LHead);
+//          opLTail:
+//            ANode := Add(Node, sBinCode_LTail);
+//          opGroup:
+//            ANode := Add(Node, sBinCode_Group);
+//          opNoBackTrack:
+//            ANode := Add(Node, sBinCode_Suspend);
+//          opKeepPattern:
+//            ANode := Add(Node, sBinCode_KeepPattern);
+//          opFail:
+//            ANode := Add(Node, sBinCode_Fail);
+//          opPrune:
+//            ANode := Add(Node, sBinCode_Prune);
+//          opSkip:
+//            ANode := Add(Node, sBinCode_Skip);
+//          opMark:
+//            ANode := Add(Node, sBinCode_Mark);
+//          opThen:
+//            ANode := Add(Node, sBinCode_Then);
+//          opCommint:
+//            ANode := Add(Node, sBinCode_Commit);
+//          opAccept:
+//            ANode := Add(Node, sBinCode_Accept);
+//          opAheadMatch:
+//            ANode := Add(Node, sBinCode_AheadMatch);
+//          opBehindMatch:
+//            ANode := Add(Node, sBinCode_BehindMatch);
+//          opAheadNoMatch:
+//            ANode := Add(Node, sBinCode_AheadNoMatch);
+//          opBehindNoMatch:
+//            ANode := Add(Node, sBinCode_BehindNoMatch);
+//          opGoSub:
+//            ANode := Add(Node, sBinCode_GroupCall);
+//          opIfMatch:
+//            ANode := Add(Node, sBinCode_IfMatch);
+//          opIfThen:
+//            ANode := Add(Node, sBinCode_IfThen);
+//          opDefine:
+//            ANode := Add(Node, sBinCode_Define);
+//        else
+//          raise ESkRegExp.Create(sBinCode_Raise);
+//        end;
+//        if Left <> nil then
+//          DumpParseSub(Left, ANode);
+//        if Right <> nil then
+//          DumpParseSub(Right, ANode);
+//      end;
+//    end
+//    else
+//      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
+//  end;
+//
+//begin
+//  TreeView.Items.Clear;
+//  DumpParseSub(FCode, nil);
+//  TreeView.FullExpand;
+//end;
 
 {$ENDIF}
 
