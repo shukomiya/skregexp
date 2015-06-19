@@ -68,7 +68,6 @@ const
   MaxListSize = Maxint div 16;
 {$IFEND}
 {$ENDIF}
-  CONST_CharMapMax = 251;
   CONST_GroupNameHashMax = 15;
   CONST_TrieHashMax = 15;
   CONST_GroupMax = 65535;
@@ -283,7 +282,7 @@ type
     function Exec(AStr: PWideChar; ATextLen: Integer): Boolean;
     function ExecNext: Boolean;
     function GetPrefix: REString;
-    function Match(AStr: PWideChar): Boolean;
+    function IsMatch(AStr: PWideChar): Boolean;
 {$IFDEF SKREGEXP_DEBUG}
     function DebugOutput: REString;
 {$ENDIF SKREGEXP_DEBUG}
@@ -4084,7 +4083,7 @@ begin
 
   while AStr < FMatchEndP do
   begin
-    if Match(AStr) then
+    if IsMatch(AStr) then
     begin
       Result := True;
       Exit;
@@ -4130,7 +4129,7 @@ begin
   end;
 end;
 
-function TRETrieSearch.Match(AStr: PWideChar): Boolean;
+function TRETrieSearch.IsMatch(AStr: PWideChar): Boolean;
 var
   Index, L, K: Integer;
   Node: TRETrieNode;
@@ -4291,7 +4290,9 @@ ReStart:
     goto ReStart;
   end;
   if FMatchCount > 0 then
+  begin
     FEndP := GetLastMatchEndP;
+  end;
   Result := FEndP <> nil;
 end;
 
@@ -4433,11 +4434,6 @@ function TRECode.IsVariable: Boolean;
 begin
   Result := False;
 end;
-
-//function TRECode.Match(Ch: UChar): Boolean;
-//begin
-//  Result := False;
-//end;
 
 { TRELiteralCode }
 
@@ -4756,7 +4752,7 @@ begin
   Result := False;
   Len := 0;
   FSearch.FMatchEndP := FRegExp.FMatchEndP;
-  if FSearch.Match(AStr) then
+  if FSearch.IsMatch(AStr) then
   begin
     Result := True;
     Len := FSearch.EndP - FSearch.StartP;
@@ -5658,7 +5654,7 @@ end;
 
 procedure TRECharClassCode.Build;
 begin
-  if (FCharCount = 0) and
+  if (FCharRange.Count = 0) and
     (System.Length(FPosixClass) = 0) and
     (System.Length(FUnicodeProperty) = 0) then
   begin
@@ -10823,6 +10819,11 @@ begin
 
   for I := 0 to FList.Count - 1 do
   begin
+    if GetItem(I).FState = nil then
+    begin
+      ADest.Clear;
+      Exit;
+    end;
     if GetItem(I).Kind = odkLead then
     begin
       if not BranchBuf[GetItem(I).State.BranchIndex] then
@@ -11586,6 +11587,9 @@ begin
           begin
             AddTransition(nkEmpty, AEntry, AWayout, nil, AGroupIndex,
               ABranchLevel);
+
+            if FBEntryState = AEntry then
+              FOptimizeData.Add(nil,  odkLead, AOffset);
           end;
         opGoSub:
           begin
@@ -15556,11 +15560,8 @@ begin
       end
       else
       begin
-        if (FLeadCode[0].State.Code as TRETrieCode).GenerateSearch then
-        begin
-          FLeadStrings := FLeadCode[0].State.Code;
-          FLeadCharMode := lcmFirstLiteral;
-        end;
+        FLeadTrie := FLeadCode[0].State.Code;
+        FLeadCharMode := lcmFirstBranch;
       end;
     end
     else if (FLeadCode[0].State.Code is TRELineHeadCode) then
@@ -15662,9 +15663,9 @@ begin
     if NoMap then
     begin
       FLeadMap.Clear;
-//      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
-//        FLeadCharMode := lcmHasLead
-//      else
+      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
+        FLeadCharMode := lcmHasLead
+      else
         FLeadCharMode := lcmNone;
     end
     else
