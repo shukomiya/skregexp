@@ -17,7 +17,7 @@
 
   The Original Code is UnicodeProp.pas(for SkRegExp Library).
 
-  The Initial Developer of the Original Code is Shuichi Komiya.
+  The Initial Developer of the Original Code is Komiya Shuichi.
 
   E-mail: shu AT komish DOT jp
   URL:    http://skregexp.komish.com/
