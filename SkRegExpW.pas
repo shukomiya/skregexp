@@ -327,7 +327,6 @@ type
     function GetTrieSearch: TRETrieSearch; virtual;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
-    function CompareCode(Source: TRECode): Integer; virtual;
     function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
       overload; virtual;
     function ExecRepeat(var AStr: PWideChar; AMin, AMax: Integer): Boolean;
@@ -336,8 +335,6 @@ type
       const AMin: Integer; const AMax: Integer = MaxInt): Boolean; overload; virtual;
     function Find(AStr: PWideChar): PWideChar; virtual;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; virtual;
-    // 文字クラスの最適化用。重複した比較をしないため。
-    function IsInclude(ACode: TRECode): Boolean; virtual;
     // この Code の末尾が ACode の先頭と一致すればTrue。繰り返しの最適化用
     function IsOverlap(ACode: TRECode): Boolean; virtual;
     function IsVariable: Boolean; virtual;
@@ -376,7 +373,6 @@ type
     function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean; override;
     function Find(AStr: PWideChar): PWideChar; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -415,7 +411,6 @@ type
     function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
       override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -427,9 +422,7 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -443,9 +436,7 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -459,9 +450,7 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -472,9 +461,7 @@ type
   TREHorizontalSpaceCharCode = class(TRECode)
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -485,9 +472,7 @@ type
   TREVerticalSpaceCharCode = class(TRECode)
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -501,7 +486,6 @@ type
     function GetLength: Integer; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -607,7 +591,6 @@ type
   public
     function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -624,7 +607,6 @@ type
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions;
       ANegative: Boolean);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -640,7 +622,6 @@ type
     constructor Create(ARegExp: TSkRegExp; AGroupIndex: Integer;
       AOptions: TREOptions); overload;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -658,7 +639,6 @@ type
     constructor Create(ARegExp: TSkRegExp; AGroupName: REString;
       AGroupIndex: Integer; AOptions: TREOptions);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     procedure SetGroupIndex(AGroupIndex: Integer);
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -671,7 +651,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -682,7 +661,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -693,7 +671,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -704,7 +681,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -715,7 +691,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -728,9 +703,7 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
       AOptions: TREOptions; ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -745,9 +718,7 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; AUnicodeProperty: TUnicodeProperty;
       ANegative: Boolean);
-    function CompareCode(Dest: TRECode): Integer; override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
 //    function Match(Ch: UChar): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
@@ -761,7 +732,6 @@ type
     function GetCharLength: TRETextPosRec; override;
   public
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -775,7 +745,6 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; const AGroupIndex: Integer);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -790,7 +759,6 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; const AGroupName: REString);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -805,7 +773,6 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; const AGroupIndex: Integer);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -820,7 +787,6 @@ type
   public
     constructor Create(ARegExp: TSkRegExp; const AGroupName: REString);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -836,7 +802,6 @@ type
     constructor Create(ARegExp: TSkRegExp;
       const ACalloutNumber, APatternPosition, APatternLength: Integer);
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
-    function IsInclude(ACode: TRECode): Boolean; override;
     function IsVariable: Boolean; override;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
@@ -4319,11 +4284,6 @@ end;
 
 { TRECode }
 
-function TRECode.CompareCode(Source: TRECode): Integer;
-begin
-  Result := 0;
-end;
-
 constructor TRECode.Create(ARegExp: TSkRegExp; AOptions: TREOptions);
 begin
   inherited Create;
@@ -4420,11 +4380,6 @@ end;
 function TRECode.GetTrieSearch: TRETrieSearch;
 begin
   Result := nil;
-end;
-
-function TRECode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := False;
 end;
 
 function TRECode.IsOverlap(ACode: TRECode): Boolean;
@@ -4634,16 +4589,6 @@ begin
   Result := RECompareString(AStr, FSubP, FLength, Len, FCompareOptions) = 0;
 end;
 
-function TRELiteralCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := False;
-
-  if not (ACode is TRELiteralCode) then
-    Exit;
-
-  Result := (ACode as TRELiteralCode).FStrings = FStrings;
-end;
-
 function TRELiteralCode.IsOverlap(ACode: TRECode): Boolean;
 var
   S: REString;
@@ -4842,25 +4787,7 @@ begin
 end;
 {$ENDIF}
 
-function TREAnyCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if ACode is TREAnyCharCode then
-    Result := True
-  else
-    Result := False;
-end;
-
 { TREWordCharCode }
-
-function TREWordCharCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if Dest is TREWordCharCode then
-  begin
-    Result := 0;
-  end
-  else
-    Result := -1;
-end;
 
 constructor TREWordCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
@@ -4923,21 +4850,6 @@ begin
 end;
 {$ENDIF}
 
-function TREWordCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if ACode is TREWordCharCode then
-    Result := (ACode as TREWordCharCode).FNegative = FNegative
-  else if ACode is TREDigitCharCode then
-  begin
-    if FNegative then
-      Result := (ACode as TREDigitCharCode).FNegative
-    else
-      Result := not(ACode as TREDigitCharCode).FNegative;
-  end
-  else
-    Result := False;
-end;
-
 function TREWordCharCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -4986,20 +4898,6 @@ end;
 //end;
 
 { TREDigitCharCode }
-
-function TREDigitCharCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if Dest is TREWordCharCode then
-  begin
-    Result := 1;
-  end
-  else if Dest is TREDigitCharCode then
-  begin
-    Result := 0;
-  end
-  else
-    Result := -1;
-end;
 
 constructor TREDigitCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
@@ -5062,14 +4960,6 @@ begin
 end;
 {$ENDIF}
 
-function TREDigitCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if ACode is TREDigitCharCode then
-    Result := FNegative and (ACode as TREDigitCharCode).FNegative
-  else
-    Result := False;
-end;
-
 function TREDigitCharCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -5119,16 +5009,6 @@ end;
 //end;
 
 { TRESpaceCharCode }
-
-function TRESpaceCharCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if (Dest is TRESpaceCharCode) then
-  begin
-    Result := 0;
-  end
-  else
-    Result := 1;
-end;
 
 constructor TRESpaceCharCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
   ANegative: Boolean);
@@ -5191,14 +5071,6 @@ begin
 end;
 {$ENDIF}
 
-function TRESpaceCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if ACode is TRESpaceCharCode then
-    Result := FNegative = (ACode as TRESpaceCharCode).FNegative
-  else
-    Result := False;
-end;
-
 function TRESpaceCharCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -5250,20 +5122,6 @@ end;
 
 { TRHorizontalSpaceCharCode }
 
-function TREHorizontalSpaceCharCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if (Dest is TRESpaceCharCode) then
-  begin
-    Result := -1;
-  end
-  else if (Dest is TREHorizontalSpaceCharCode) then
-  begin
-    Result := 0
-  end
-  else
-    Result := 1;
-end;
-
 constructor TREHorizontalSpaceCharCode.Create(ARegExp: TSkRegExp;
   ANegative: Boolean);
 begin
@@ -5299,11 +5157,6 @@ begin
     Len := 1;
 end;
 
-function TREHorizontalSpaceCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TREHorizontalSpaceCharCode;
-end;
-
 function TREHorizontalSpaceCharCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -5330,20 +5183,6 @@ end;
 //end;
 
 { TREVerticalSpaceCharCode }
-
-function TREVerticalSpaceCharCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if (Dest is TRESpaceCharCode) then
-  begin
-    Result := -1;
-  end
-  else if (Dest is TREVerticalSpaceCharCode) then
-  begin
-    Result := 0
-  end
-  else
-    Result := 1;
-end;
 
 constructor TREVerticalSpaceCharCode.Create(ARegExp: TSkRegExp;
   ANegative: Boolean);
@@ -5378,11 +5217,6 @@ begin
 
   if Result then
     Len := 1;
-end;
-
-function TREVerticalSpaceCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TREVerticalSpaceCharCode;
 end;
 
 function TREVerticalSpaceCharCode.IsOverlap(ACode: TRECode): Boolean;
@@ -5442,11 +5276,6 @@ begin
 
   Len := FRegExp.IsAnyEOL(AStr);
   Result := Len > 0;
-end;
-
-function TRELineBreakCharCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRELineBreakCharCode;
 end;
 
 function TRELineBreakCharCode.IsOverlap(ACode: TRECode): Boolean;
@@ -5764,7 +5593,7 @@ end;
 
 function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar): Integer;
 begin
-  Result := Add(AStartWChar, ALastWChar,  REOptionsToRECompareOptions(FOptions));
+  Result := Add(AStartWChar, ALastWChar, REOptionsToRECompareOptions(FOptions));
 end;
 
 function TRECharClassCode.Add(AWChar: UChar): Integer;
@@ -6404,11 +6233,6 @@ begin
 end;
 {$ENDIF}
 
-function TRECombiningSequence.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRECombiningSequence;
-end;
-
 function TRECombiningSequence.IsVariable: Boolean;
 begin
   Result := True;
@@ -6563,11 +6387,6 @@ begin
 end;
 {$ENDIF}
 
-function TREBoundaryCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TREBoundaryCode;
-end;
-
 { TREReferenceCode }
 
 constructor TREReferenceCode.Create(ARegExp: TSkRegExp; AGroupIndex: Integer;
@@ -6612,13 +6431,6 @@ begin
   Result := Format(sFmtGroupReference, [FGroupIndex]);
 end;
 {$ENDIF}
-
-function TREReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TREReferenceCode;
-  if Result then
-    Result := (ACode as TREReferenceCode).FGroupIndex = FGroupIndex;
-end;
 
 function TREReferenceCode.IsVariable: Boolean;
 begin
@@ -6687,13 +6499,6 @@ begin
 end;
 {$ENDIF}
 
-function TRENamedReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRENamedReferenceCode;
-  if Result then
-    Result := (ACode as TRENamedReferenceCode).FGroupIndex = FGroupIndex;
-end;
-
 function TRENamedReferenceCode.IsVariable: Boolean;
 begin
   Result := True;
@@ -6744,11 +6549,6 @@ begin
 end;
 {$ENDIF}
 
-function TRELineHeadCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRELineHeadCode;
-end;
-
 { TRELineTailCode }
 
 function TRELineTailCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -6787,11 +6587,6 @@ begin
 end;
 {$ENDIF}
 
-function TRELineTailCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRELineTailCode;
-end;
-
 { TRETextHeadCode }
 
 function TRETextHeadCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -6813,11 +6608,6 @@ begin
   Result := sTextHeadCode;
 end;
 {$ENDIF}
-
-function TRETextHeadCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRETextHeadCode;
-end;
 
 { TRETextTailCode }
 
@@ -6847,11 +6637,6 @@ begin
 end;
 {$ENDIF}
 
-function TRETextTailCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRETextTailCode;
-end;
-
 { TRETextEndCode }
 
 function TRETextEndCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -6874,28 +6659,9 @@ begin
 end;
 {$ENDIF}
 
-function TRETextEndCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TRETextEndCode;
-end;
-
 { TREPropertyCode }
 
 {$IFDEF USE_UNICODE_PROPERTY}
-function TREPropertyCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if (Dest is TREPropertyCode) then
-  begin
-    if ((Dest as TREPropertyCode).FNegative = FNegative) and
-      (FUniCodeProperty = (Dest as TREPropertyCode).FUniCodeProperty) then
-      Result := 0
-    else
-      Result := 1;
-  end
-  else
-    Result := 1;
-end;
-
 constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
   AUnicodeProperty: TUnicodeProperty; ANegative: Boolean);
 begin
@@ -6954,13 +6720,6 @@ begin
 end;
 {$ENDIF SKREGEXP_DEBUG}
 
-function TREPropertyCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := (ACode is TREPropertyCode) and
-    ((ACode as TREPropertyCode).FUniCodeProperty = FUniCodeProperty) and
-    ((ACode as TREPropertyCode).FNegative = FNegative);
-end;
-
 function TREPropertyCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -6990,28 +6749,6 @@ end;
 {$ENDIF USE_UNICODE_PROPERTY}
 
 { TREPosixCharClassCode }
-
-function TREPosixCharClassCode.CompareCode(Dest: TRECode): Integer;
-begin
-  if Dest is TREPosixCharClassCode then
-  begin
-    if ((Dest as TREPosixCharClassCode).FNegative = FNegative) and
-      ((Dest as TREPosixCharClassCode).FPosixClass = FPosixClass) then
-      Result := 0
-    else
-      Result := 1;
-  end
-{$IFDEF USE_UNICODE_PROPERTY}
-  else if Dest is TREPropertyCode then
-  begin
-    Result := -1;
-  end
-{$ENDIF USE_UNICODE_PROPERTY}
-  else
-  begin
-    Result := 1;
-  end;
-end;
 
 constructor TREPosixCharClassCode.Create(ARegExp: TSkRegExp;
   APosixClass: TREPosixClassKind; AOptions: TREOptions; ANegative: Boolean);
@@ -7104,13 +6841,6 @@ begin
     Len := 0;
 end;
 
-function TREPosixCharClassCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := (ACode is TREPosixCharClassCode) and
-    ((ACode as TREPosixCharClassCode).FPosixClass = FPosixClass) and
-    ((ACode as TREPosixCharClassCode).FNegative = FNegative);
-end;
-
 function TREPosixCharClassCode.IsOverlap(ACode: TRECode): Boolean;
 begin
   if ACode.CharLength.Min <= 0 then
@@ -7182,11 +6912,6 @@ begin
   Result := AStr = P;
 end;
 
-function TREGlobalPosCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := ACode is TREGlobalPosCode;
-end;
-
 { TREIfMatchReferenceCode }
 
 constructor TREIfThenReferenceCode.Create(ARegExp: TSkRegExp;
@@ -7217,12 +6942,6 @@ begin
   Result := False;
   if FGroupIndex <= FRegExp.GroupCount then
     Result := FRegExp.FGroups[FGroupIndex].Success;
-end;
-
-function TREIfThenReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := (ACode is TREIfThenReferenceCode) and
-    ((ACode as TREIfThenReferenceCode).FGroupIndex = FGroupIndex);
 end;
 
 function TREIfThenReferenceCode.IsVariable: Boolean;
@@ -7259,12 +6978,6 @@ begin
   Len := 0;
 
   Result := FRegExp.FGroups.Names[FGroupName].Success;
-end;
-
-function TREIfThenNamedReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := (ACode is TREIfThenNamedReferenceCode) and
-    ((ACode as TREIfThenNamedReferenceCode).FGroupName = FGroupName);
 end;
 
 function TREIfThenNamedReferenceCode.IsVariable: Boolean;
@@ -7307,14 +7020,6 @@ begin
       Result := True;
 end;
 
-function TREInSubReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if (ACode is TREInSubReferenceCode) then
-    Result := (ACode as TREInSubReferenceCode).FGroupIndex = FGroupIndex
-  else
-    Result := False;
-end;
-
 function TREInSubReferenceCode.IsVariable: Boolean;
 begin
   Result := True;
@@ -7350,14 +7055,6 @@ begin
   Len := 0;
   if FRegExp.FSubStack.Count > 0 then
     Result := FRegExp.FGroups[FRegExp.FSubStack.GroupIndex].GroupName = FGroupName;
-end;
-
-function TREInSubNameReferenceCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  if ACode is TREInSubNameReferenceCode then
-    Result := (ACode as TREInSubNameReferenceCode).FGroupName = FGroupName
-  else
-    Result := False;
 end;
 
 function TREInSubNameReferenceCode.IsVariable: Boolean;
@@ -7404,12 +7101,6 @@ begin
   FData.StartMatch := FRegExp.FStartMatch;
 
   FRegExp.FOnCallout(FRegExp, @FData, Result, Len);
-end;
-
-function TRECalloutCode.IsInclude(ACode: TRECode): Boolean;
-begin
-  Result := (ACode is TRECalloutCode) and
-    ((ACode as TRECalloutCode).FData.CalloutNumber = FData.CalloutNumber);
 end;
 
 function TRECalloutCode.IsVariable: Boolean;
