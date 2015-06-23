@@ -381,6 +381,24 @@ type
 {$ENDIF}
   end;
 
+  TRELiteralSingleCode = class(TRELiteralCode)
+  public
+    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean; override;
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRELiteralSimpleCode = class(TRELiteralCode)
+  public
+    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean; override;
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRELiteralSimpleACode = class(TRELiteralCode)
+  public
+    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean; override;
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
   TRETrieCode = class(TRECode)
   private
     FSearch: TRETrieSearch;
@@ -439,6 +457,8 @@ type
 
   TREDigitCharCode = class(TRECharSetCode)
   public
+//    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
+//      override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
     function IsMatch(Ch: UChar): Boolean; override;
@@ -528,24 +548,23 @@ type
     FCharSetCount: Integer;
     FIgnoreCase: Boolean;
     FASCIIOnly: Boolean;
+    FHasMap: Boolean;
+    FHasUnicode: Boolean;
     FCharSetList: TObjectList;
     FCharRange: TRECharRange;
     FHasRange: Boolean;
 //    FMatchFuncArray: TRECharClassMatchFuncArray;
-    FHasUnicode: Boolean;
     function GetSimpleClass: Boolean;
   protected
     Match: TList;
-    IsEqualFunc: TREIsEqualFunc;
     procedure InitCharMap(IsNegative: Boolean);
     procedure InternalAdd(Ch: UChar);
-    function IsEqualMapA(AStr: PWideChar; var Len: Integer): Boolean;
-    function IsEqualFull(AStr: PWideChar; var Len: Integer): Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean;
       AOptions: TREOptions);
     destructor Destroy; override;
     procedure Clear;
+    procedure Assign(Source: TRECharClassCode);
     function Add(AWChar: UChar): Integer; overload;
     function Add(AWChar: UChar; ACompareOptions: TRECompareOptions): Integer; overload;
     function Add(AStartWChar, ALastWChar: UChar): Integer; overload;
@@ -553,7 +572,7 @@ type
     function Add(ACode: TRECharSetCode): Integer; overload;
     function Add(AMap: TREASCIICharMapArray; IsNegative: Boolean): Integer; overload;
     function Add(ACharClass: TRECharClassCode): Integer; overload;
-    procedure Build;
+    function Build: TRECharClassCode;
     function ExecRepeat(var AStr: PWideChar; IsGreedy: Boolean;
       const AMin: Integer; const AMax: Integer = MaxInt): Boolean; overload; override;
     function Find(AStr: PWideChar): PWideChar; override;
@@ -567,7 +586,37 @@ type
     property SimpleClass: Boolean read GetSimpleClass;
     property IgnoreCase: Boolean read FIgnoreCase;
     property ASCIIOnly: Boolean read FASCIIOnly;
-    property HasRange: Boolean read FHasRange;
+//    property HasRange: Boolean read FHasRange;
+  end;
+
+  TRECharClassMapACode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRECharClassMapIACode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRECharClassMapUCode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRECharClassMapIUCode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRECharClassSimpleCharSetCode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+  end;
+
+  TRECharClassSimpleCharSetICode = class(TRECharClassCode)
+  public
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
   end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -1431,7 +1480,7 @@ type
     FLeadTrie: TRECode;
     FAnchorStrings: TRECode;
     FLeadCharMode: TRELeadCharMode;
-    FLeadMap: TRECharClassCode;
+    FLeadMap: TRECharClassMapIUCode;
     FACSearch: TRETrieSearch;
     FLeadCharOffset: TRETextPosRec;
     FAnchorOffset: TRETextPosRec;
@@ -2060,6 +2109,12 @@ function GetASCIIMode(AOptions: TREOptions): Boolean; inline;
 begin
   Result := (roDefinedCharClassLegacy in AOptions) or
     (roASCIICharClass in AOptions);
+end;
+
+function HasCompareOption(AOptions: TREOptions): Boolean; inline;
+begin
+  Result :=(roIgnoreCase in AOptions) or (roIgnoreWidth in AOptions) or
+    (roIgnoreKana in AOptions);
 end;
 
 function ToFoldCase(const S: REString; IsASCII: Boolean): REString;
@@ -4603,6 +4658,107 @@ begin
   end;
 end;
 
+{ TRELiteralSingleCode }
+
+function TRELiteralSingleCode.ExecRepeat(var AStr: PWideChar;
+  IsStar: Boolean): Boolean;
+var
+  StartP: PWideChar;
+  Len: Integer;
+begin
+  Result := IsStar;
+  StartP := AStr;
+
+  begin
+    while AStr^ = PWideChar(FStrings)^ do
+      Inc(AStr);
+  end;
+
+  Len := AStr - StartP;
+  if not Result then
+    Result := Len > 0;
+end;
+
+function TRELiteralSingleCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+begin
+  Result := False;
+  Len := 0;
+
+  if AStr = FRegExp.FMatchEndP then
+    Exit;
+
+  Result := AStr^ = FSubP^;
+  if Result then
+    Len := 1;
+end;
+
+{ TRELiteralSimpleCode }
+
+function TRELiteralSimpleCode.ExecRepeat(var AStr: PWideChar;
+  IsStar: Boolean): Boolean;
+var
+  StartP: PWideChar;
+  Len: Integer;
+begin
+  Result := IsStar;
+  StartP := AStr;
+
+  while REStrLComp(AStr, PWideChar(FStrings), FLength) = 0 do
+    Inc(AStr, FLength);
+
+  Len := AStr - StartP;
+  if not Result then
+    Result := Len > 0;
+end;
+
+function TRELiteralSimpleCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+begin
+  Result := False;
+  Len := 0;
+
+  if AStr = FRegExp.FMatchEndP then
+    Exit;
+
+  Result := REStrLComp(AStr, FSubP, FLength) = 0;
+  if Result then
+    Len := FLength;
+end;
+
+{ TRELiteralSimpleACode }
+
+function TRELiteralSimpleACode.ExecRepeat(var AStr: PWideChar;
+  IsStar: Boolean): Boolean;
+var
+  StartP: PWideChar;
+  Len: Integer;
+begin
+  Result := IsStar;
+  StartP := AStr;
+
+  while REStrLIAComp(AStr, PWideChar(FStrings), FLength) = 0 do
+    Inc(AStr, FLength);
+
+  Len := AStr - StartP;
+  if not Result then
+    Result := Len > 0;
+end;
+
+function TRELiteralSimpleACode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+begin
+  Result := False;
+  Len := 0;
+
+  if AStr = FRegExp.FMatchEndP then
+    Exit;
+
+  Result := REStrLIAComp(AStr, FSubP, FLength) = 0;
+  if Result then
+    Len := FLength;
+end;
+
 { TRETrieCode }
 
 procedure TRETrieCode.Add(ACode: TRECode);
@@ -4909,6 +5065,24 @@ end;
 //end;
 
 { TREDigitCharCode }
+
+//function TREDigitCharCode.ExecRepeat(var AStr: PWideChar;
+//  IsStar: Boolean): Boolean;
+//begin
+//  Result := IsStar;
+//
+//  while AStr < FRegExp.FMatchEndP do
+//  begin
+//    if AStr^ < #128 then
+//    begin
+//      if not IsDigitA(UChar(AStr^)) then
+//        Exit;
+//      Inc(AStr);
+//    end
+//    else
+//      Exit;
+//  end;
+//end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
@@ -5528,6 +5702,107 @@ begin
   FCharRange.Assign(ACharClass.FCharRange);
 end;
 
+procedure TRECharClassCode.Assign(Source: TRECharClassCode);
+var
+  I: Integer;
+  LPosix: TREPosixCharClassCode;
+  LPropery: TREPropertyCode;
+begin
+  Clear;
+  FNegative := Source.FNegative;
+  FWChar := Source.FWChar;
+  FCharCount := Source.FCharCount;
+  FCharSetCount := Source.FCharSetCount;
+  FIgnoreCase := Source.FIgnoreCase;
+  FASCIIOnly := Source.FASCIIOnly;
+  FHasMap := Source.FHasMap;
+  FHasUnicode := Source.FHasUnicode;
+
+  if FHasMap then
+    for I := Low(Source.FASCIIMap) to High(Source.FASCIIMap) do
+      FASCIIMap[I] := Source.FASCIIMap[I];
+
+  if Source.FHasRange then
+    FCharRange.Assign(Source.FCharRange);
+
+  if Source.FCharSetCount > 0 then
+  begin
+    for I := 0 to Source.FCharSetList.Count - 1 do
+    begin
+      if Source.FCharSetList[I] is TREWordCharCode then
+        FCharSetList.Add(TREWordCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+      else if Source.FCharSetList[I] is TREDigitCharCode then
+        FCharSetList.Add(TREDigitCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+      else if Source.FCharSetList[I] is TRESpaceCharCode then
+        FCharSetList.Add(TRESpaceCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+      else if Source.FCharSetList[I] is TREHorizontalSpaceCharCode then
+        FCharSetList.Add(TREHorizontalSpaceCharCode.Create(Source.FRegExp, FNegative))
+      else if Source.FCharSetList[I] is TREVerticalSpaceCharCode then
+        FCharSetList.Add(TREVerticalSpaceCharCode.Create(Source.FRegExp, Source.FNegative))
+      else if Source.FCharSetList[I] is TREPosixCharClassCode then
+      begin
+        LPosix := Source.FCharSetList[I] as TREPosixCharClassCode;
+        FCharSetList.Add(TREPosixCharClassCode.Create(
+          LPosix.FRegExp, LPosix.FPosixClass, LPosix.FOptions, LPosix.FNegative));
+      end
+      else if Source.FCharSetList[I] is TREPropertyCode then
+      begin
+        LPropery := Source.FCharSetList[I] as TREPropertyCode;
+        FCharSetList.Add(TREPropertyCode.Create(
+          LPropery.FRegExp, LPropery.FUniCodeProperty, LPropery.FNegative));
+      end
+      else
+      begin
+        FRegExp.Error('bug: not found Chaset Type.');
+      end;
+    end;
+  end;
+end;
+
+function TRECharClassCode.Build: TRECharClassCode;
+begin
+  Result := nil;
+
+  if FCharSetCount = 0 then
+  begin
+    if (FCharCount > 0) then
+    begin
+      if FHasUnicode then
+      begin
+        if FIgnoreCase then
+          Result := TRECharClassMapIUCode.Create(FRegExp, FNegative, FOptions)
+        else
+          Result := TRECharClassMapUCode.Create(FRegExp, FNegative, FOptions);
+      end
+      else
+      begin
+        if FIgnoreCase then
+          Result := TRECharClassMapIACode.Create(FRegExp, FNegative, FOptions)
+        else
+          Result := TRECharClassMapACode.Create(FRegExp, FNegative, FOptions);
+      end;
+    end
+    else
+      FRegExp.Error('bug?: can not build charactor class');
+  end
+  else
+  begin
+    if FCharCount = 0 then
+    begin
+      if FIgnoreCase then
+        Result := TRECharClassSimpleCharSetICode.Create(FRegExp, FNegative, FOptions)
+      else
+        Result := TRECharClassSimpleCharSetCode.Create(FRegExp, FNegative, FOptions);
+    end
+    else
+    begin
+      Result := TRECharClassCode.Create(FRegExp, FNegative, FOptions);
+    end;
+  end;
+
+  Result.Assign(Self);
+end;
+
 function TRECharClassCode.Add(ACode: TRECharSetCode): Integer;
 begin
   Result := IndexOfCharSet(ACode);
@@ -5536,17 +5811,6 @@ begin
     FCharSetList.Add(ACode);
     Inc(FCharSetCount);
   end;
-end;
-
-procedure TRECharClassCode.Build;
-begin
-  if (FCharRange.Count = 0) and (FCharSetCount = 0) then
-  begin
-    IsEqualFunc := IsEqualMapA;
-  end
-  else
-    IsEqualFunc := IsEqualFull;
-
 end;
 
 function TRECharClassCode.Add(AStartWChar, ALastWChar: UChar;
@@ -5603,41 +5867,31 @@ begin
     if not FHasUnicode then
       FHasUnicode := True;
 
-    if ALastWChar - AStartWChar < 30 then
-    begin
-      for C := AStartWChar to ALastWChar do
-        Add(C, ACompareOptions);
-    end
-    else
-    begin
-      Result := FCharRange.Add(AStartWChar, ALastWChar);
+    Result := FCharRange.Add(AStartWChar, ALastWChar);
 
-      Inc(FCharCount, ALastWChar - AStartWChar);
+    Inc(FCharCount, ALastWChar - AStartWChar);
 
-      if not FHasRange then
-      begin
-        FHasRange := True;
-      end;
+    if not FHasRange then
+      FHasRange := True;
 
 {$IFDEF JapaneseExt}
-      if (coIgnoreWidth in ACompareOptions) or (coIgnoreKana in ACompareOptions) then
+    if (coIgnoreWidth in ACompareOptions) or (coIgnoreKana in ACompareOptions) then
+    begin
+      StartStr := UCharToString(AStartWChar);
+      LastStr := UCharToString(ALastWChar);
+
+      if coIgnoreWidth in ACompareOptions then
       begin
-        StartStr := UCharToString(AStartWChar);
-        LastStr := UCharToString(ALastWChar);
+        ConvertJapaneseExt(StartStr, LastStr, ToWide);
+        ConvertJapaneseExt(StartStr, LastStr, ToHalf);
+      end;
 
-        if coIgnoreWidth in ACompareOptions then
-        begin
-          ConvertJapaneseExt(StartStr, LastStr, ToWide);
-          ConvertJapaneseExt(StartStr, LastStr, ToHalf);
-        end;
-
-        if coIgnoreKana in ACompareOptions then
-        begin
-          StartStr := ToWide(StartStr);
-          LastStr := ToWide(LastStr);
-          ConvertJapaneseExt(StartStr, LastStr, ToHiragana);
-          ConvertJapaneseExt(StartStr, LastStr, ToKatakana);
-        end;
+      if coIgnoreKana in ACompareOptions then
+      begin
+        StartStr := ToWide(StartStr);
+        LastStr := ToWide(LastStr);
+        ConvertJapaneseExt(StartStr, LastStr, ToHiragana);
+        ConvertJapaneseExt(StartStr, LastStr, ToKatakana);
       end;
     end;
 {$ENDIF JapaneseExt}
@@ -5828,6 +6082,9 @@ begin
       FASCIIMap[Byte(Ch) div 8] := FASCIIMap[Byte(Ch) div 8] xor (1 shl (Byte(Ch) and 7))
     else
       FASCIIMap[Byte(Ch) div 8] := FASCIIMap[Byte(Ch) div 8] or (1 shl (Byte(Ch) and 7));
+
+    if not FHasMap then
+      FHasMap := True;
   end
   else
   begin
@@ -5835,6 +6092,9 @@ begin
       FHasUnicode := True;
 
     FCharRange.Add(Ch, Ch);
+
+    if not FHasRange then
+      FHasRange := True;
   end;
 
   Inc(FCharCount);
@@ -5850,7 +6110,6 @@ begin
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
   InitCharMap(ANegative);
-  IsEqualFunc := IsEqualFull;
 end;
 
 destructor TRECharClassCode.Destroy;
@@ -5905,49 +6164,7 @@ begin
   Result := nil;
 end;
 
-function TRECharClassCode.IsEqualMapA(AStr: PWideChar;
-  var Len: Integer): Boolean;
-var
-  Ch: UChar;
-begin
-  Result := False;
-  Len := 0;
-
-  if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  if AStr^ < #128 then
-  begin
-    if FIgnoreCase then
-    begin
-      case AStr^ of
-        'A'..'Z':
-          Ch := UChar(AStr^) xor $0020
-        else
-          Ch := UChar(AStr^);
-      end;
-    end
-    else
-      Ch := UChar(AStr^);
-
-    Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
-  end
-  else
-  begin
-    if not FHasUnicode then
-      Result := True;
-  end;
-  if Result then
-    Len := 1;
-end;
-
 function TRECharClassCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-begin
-  Result := IsEqualFunc(AStr, Len);
-end;
-
-function TRECharClassCode.IsEqualFull(AStr: PWideChar;
-  var Len: Integer): Boolean;
 var
   Ch: UChar;
   FD: TUnicodeMultiChar;
@@ -6026,16 +6243,17 @@ begin
         Break;
       end;
     end;
+
+    if FNegative then
+      Result := not Result;
   end;
-  if FNegative then
-    Result := not Result;
 end;
 
 function TRECharClassCode.IsExists(AStr: PWideChar): Boolean;
 var
   L: Integer;
 begin
-  Result := IsEqualFull(AStr, L);
+  Result := IsEqual(AStr, L);
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -6187,6 +6405,247 @@ begin
     else
       Result := False;
   end;
+end;
+
+{ TRECharClassMapACode }
+
+function TRECharClassMapACode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  if AStr^ < #128 then
+  begin
+    Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
+
+    if Result then
+      Len := 1;
+  end
+  else
+  begin
+    if not FNegative then
+      Result := False
+    else
+    begin
+      Result := True;
+      if IsLeadChar(AStr^) then
+        Len := 2
+      else
+        Len := 1;
+    end;
+  end;
+end;
+
+{ TRECharClassMapIACode }
+
+function TRECharClassMapIACode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+var
+  Ch: UChar;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  if AStr^ < #128 then
+  begin
+    case AStr^ of
+      'A'..'Z':
+        Ch := UChar(AStr^) xor $0020
+      else
+        Ch := UChar(AStr^);
+    end;
+
+    Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
+
+    if Result then
+      Len := 1;
+  end
+  else
+  begin
+    if not FNegative then
+      Result := False
+    else
+    begin
+      Result := True;
+      if IsLeadChar(AStr^) then
+        Len := 2
+      else
+        Len := 1;
+    end;
+  end;
+end;
+
+{ TRECharClassMapUCode }
+
+function TRECharClassMapUCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  if FHasMap and (AStr^ < #128) then
+  begin
+    Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
+    if Result then
+      Len := 1;
+  end
+  else
+  begin
+    Result := FCharRange.IsMatch(ToUChar(AStr, Len));
+
+    if FNegative then
+      Result := not Result;
+  end;
+end;
+
+{ TRECharClassMapIUCode }
+
+function TRECharClassMapIUCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+var
+  Ch: UChar;
+  FD: TUnicodeMultiChar;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  if FIgnoreCase then
+  begin
+    if AStr^ < #128 then
+    begin
+      Len := 1;
+      case AStr^ of
+        'A'..'Z':
+          Ch := UChar(AStr^) xor $0020
+        else
+          Ch := UChar(AStr^);
+      end;
+    end
+    else
+    begin
+      Ch := ToUChar(AStr, Len);
+
+{$IFDEF USE_UNICODE_PROPERTY}
+      if not (roASCIIOnly in FOptions) then
+      begin
+        FD := GetUnicodeFoldCase(Ch);
+        Ch := FD[FD[0]];
+      end;
+{$ENDIF USE_UNICODE_PROPERTY}
+    end;
+  end
+  else
+  begin
+    if AStr^ < #128 then
+    begin
+      Len := 1;
+      Ch := UChar(AStr^);
+    end
+    else
+      Ch := ToUChar(AStr, Len);
+  end;
+
+  if (Ch < 128) then
+  begin
+    Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
+  end
+  else
+  begin
+    Result := FCharRange.IsMatch(Ch);
+
+    if FNegative then
+      Result := not Result;
+  end;
+end;
+
+{ TRECharClassSimpleCharSetCode }
+
+function TRECharClassSimpleCharSetCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  for I := 0 to FCharSetList.Count - 1 do
+  begin
+    if (FCharSetList[I] as TRECharSetCode).IsMatch(ToUChar(AStr, Len)) then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+
+  if FNegative then
+    Result := not Result;
+end;
+
+{ TRECharClassSimpleCharSetICode }
+
+function TRECharClassSimpleCharSetICode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+var
+  Ch: UChar;
+  FD: TUnicodeMultiChar;
+  I: Integer;
+begin
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  if AStr^ < #128 then
+  begin
+    Len := 1;
+    case AStr^ of
+      'A'..'Z':
+        Ch := UChar(AStr^) xor $0020
+      else
+        Ch := UChar(AStr^);
+    end;
+  end
+  else
+  begin
+    Ch := ToUChar(AStr, Len);
+
+{$IFDEF USE_UNICODE_PROPERTY}
+    if not (roASCIIOnly in FOptions) then
+    begin
+      FD := GetUnicodeFoldCase(Ch);
+      Ch := FD[FD[0]];
+    end;
+{$ENDIF USE_UNICODE_PROPERTY}
+  end;
+
+  for I := 0 to FCharSetList.Count - 1 do
+  begin
+    if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+
+  if FNegative then
+    Result := not Result;
 end;
 
 { TRECombiningSequence }
@@ -6678,6 +7137,15 @@ begin
   IsMatchFunc := IsPropertyMatch;
 end;
 
+constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
+  APosixClass: TREPosixClassKind; ANegative: Boolean);
+begin
+  inherited Create(ARegExp, [], ANegative);
+  FPosixClass := APosixClass;
+  IsEqualFunc := IsPosixEqual;
+  IsMatchFunc := IsPosixMatch;
+end;
+
 function TREPropertyCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Result := IsEqualFunc(AStr, Len);
@@ -6689,15 +7157,6 @@ begin
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
-
-constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
-  APosixClass: TREPosixClassKind; ANegative: Boolean);
-begin
-  inherited Create(ARegExp, [], ANegative);
-  FPosixClass := APosixClass;
-  IsEqualFunc := IsPosixEqual;
-  IsMatchFunc := IsPosixMatch;
-end;
 
 function TREPropertyCode.GetDebugStr: REString;
 
@@ -9411,71 +9870,17 @@ end;
 
 function TREParser.NewCharClassCode(ANegative: Boolean): TRECode;
 var
-  I: Integer;
   LCharClass: TRECharClassCode;
 begin
   LCharClass := TRECharClassCode.Create(FRegExp, ANegative, FLex.Options);
-  FRegExp.FCodeList.Add(LCharClass);
 
-  FLex.GetToken;
-  case FLex.Token of
-    tkChar:
-      LCharClass.Add(FLex.FWChar);
-    tkRangeChar:
-      LCharClass.Add(FLex.StartWChar, FLex.LastWChar);
-    tkWordChar:
-      LCharClass.Add(TREWordCharCode.Create(FRegExp, FLex.Options, False));
-    tkDigitChar:
-      LCharClass.Add(TREDigitCharCode.Create(FRegExp, FLex.Options, False));
-    tkSpaceChar:
-      LCharClass.Add(TRESpaceCharCode.Create(FRegExp, FLex.Options, False));
-    tkNEWordChar:
-      LCharClass.Add(TREWordCharCode.Create(FRegExp, FLex.Options, True));
-    tkNEDigitChar:
-      LCharClass.Add(TREDigitCharCode.Create(FRegExp, FLex.Options, True));
-    tkNESpaceChar:
-      LCharClass.Add(TRESpaceCharCode.Create(FRegExp, FLex.Options, True));
-    tkPosixBracket:
-      LCharClass.Add(TREPosixCharClassCode.Create(FRegExp, FLex.PosixClass, FLex.Options, False));
-    tkNEPosixBracket:
-      LCharClass.Add(TREPosixCharClassCode.Create(FRegExp, FLex.PosixClass, FLex.Options, True));
-{$IFDEF USE_UNICODE_PROPERTY}
-    tkProperty:
-      LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, False));
-    tkNEProperty:
-      LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, True));
-    tkPropertyPosix:
-      LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, False));
-    tkNEPropertyPosix:
-      LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, True));
-{$ENDIF USE_UNICODE_PROPERTY}
-    tkHorizontalSpaceChar:
-      LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, False));
-    tkNEHorizontalSpaceChar:
-      LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, True));
-    tkVerticalSpaceChar:
-      LCharClass.Add(TREVerticalSpaceCharCode.Create(FRegExp, False));
-    tkNEVerticalSpaceChar:
-      LCharClass.Add(TREVerticalSpaceCharCode.Create(FRegExp, True));
-  else
-    FLex.Error(sInvalidCharactorClass);
-  end;
+  try
+//  FRegExp.FCodeList.Add(LCharClass);
 
-  FLex.GetToken;
-  while (FLex.Token = tkRangeChar) or (FLex.Token = tkChar) or
-    (FLex.Token = tkWordChar) or (FLex.Token = tkNEWordChar) or
-    (FLex.Token = tkDigitChar) or (FLex.Token = tkNEDigitChar) or
-    (FLex.Token = tkSpaceChar) or (FLex.Token = tkNESpaceChar) or
-    (FLex.Token = tkPosixBracket) or (FLex.Token = tkNEPosixBracket) or
-    (FLex.Token = tkProperty) or (FLex.Token = tkNEProperty) or
-    (FLex.Token = tkPropertyPosix) or (FLex.Token = tkNEPropertyPosix) or
-    (FLex.Token = tkHorizontalSpaceChar) or
-    (FLex.Token = tkNEHorizontalSpaceChar) or (FLex.Token = tkVerticalSpaceChar)
-    or (FLex.Token = tkNEVerticalSpaceChar) do
-  begin
+    FLex.GetToken;
     case FLex.Token of
       tkChar:
-        LCharClass.Add(FLex.WChar);
+        LCharClass.Add(FLex.FWChar);
       tkRangeChar:
         LCharClass.Add(FLex.StartWChar, FLex.LastWChar);
       tkWordChar:
@@ -9515,40 +9920,104 @@ begin
     else
       FLex.Error(sInvalidCharactorClass);
     end;
+
     FLex.GetToken;
+    while (FLex.Token = tkRangeChar) or (FLex.Token = tkChar) or
+      (FLex.Token = tkWordChar) or (FLex.Token = tkNEWordChar) or
+      (FLex.Token = tkDigitChar) or (FLex.Token = tkNEDigitChar) or
+      (FLex.Token = tkSpaceChar) or (FLex.Token = tkNESpaceChar) or
+      (FLex.Token = tkPosixBracket) or (FLex.Token = tkNEPosixBracket) or
+      (FLex.Token = tkProperty) or (FLex.Token = tkNEProperty) or
+      (FLex.Token = tkPropertyPosix) or (FLex.Token = tkNEPropertyPosix) or
+      (FLex.Token = tkHorizontalSpaceChar) or
+      (FLex.Token = tkNEHorizontalSpaceChar) or (FLex.Token = tkVerticalSpaceChar)
+      or (FLex.Token = tkNEVerticalSpaceChar) do
+    begin
+      case FLex.Token of
+        tkChar:
+          LCharClass.Add(FLex.WChar);
+        tkRangeChar:
+          LCharClass.Add(FLex.StartWChar, FLex.LastWChar);
+        tkWordChar:
+          LCharClass.Add(TREWordCharCode.Create(FRegExp, FLex.Options, False));
+        tkDigitChar:
+          LCharClass.Add(TREDigitCharCode.Create(FRegExp, FLex.Options, False));
+        tkSpaceChar:
+          LCharClass.Add(TRESpaceCharCode.Create(FRegExp, FLex.Options, False));
+        tkNEWordChar:
+          LCharClass.Add(TREWordCharCode.Create(FRegExp, FLex.Options, True));
+        tkNEDigitChar:
+          LCharClass.Add(TREDigitCharCode.Create(FRegExp, FLex.Options, True));
+        tkNESpaceChar:
+          LCharClass.Add(TRESpaceCharCode.Create(FRegExp, FLex.Options, True));
+        tkPosixBracket:
+          LCharClass.Add(TREPosixCharClassCode.Create(FRegExp, FLex.PosixClass, FLex.Options, False));
+        tkNEPosixBracket:
+          LCharClass.Add(TREPosixCharClassCode.Create(FRegExp, FLex.PosixClass, FLex.Options, True));
+    {$IFDEF USE_UNICODE_PROPERTY}
+        tkProperty:
+          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, False));
+        tkNEProperty:
+          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, True));
+        tkPropertyPosix:
+          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, False));
+        tkNEPropertyPosix:
+          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, True));
+    {$ENDIF USE_UNICODE_PROPERTY}
+        tkHorizontalSpaceChar:
+          LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, False));
+        tkNEHorizontalSpaceChar:
+          LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, True));
+        tkVerticalSpaceChar:
+          LCharClass.Add(TREVerticalSpaceCharCode.Create(FRegExp, False));
+        tkNEVerticalSpaceChar:
+          LCharClass.Add(TREVerticalSpaceCharCode.Create(FRegExp, True));
+      else
+        FLex.Error(sInvalidCharactorClass);
+      end;
+      FLex.GetToken;
+    end;
+    if FLex.Token <> tkCharClassEnd then
+      FLex.Error(sUnmatchedBigPar);
+
+    // 1 文字だけの文字クラスなら解除
+    if not LCharClass.FNegative and (LCharClass.FCharCount = 1) and
+        (LCharClass.FCharSetCount = 0) then
+    begin
+      Result := NewLiteralCode(LCharClass.FWChar, LCharClass.FOptions);
+      FRegExp.FCodeList.Add(Result);
+
+//      I := FRegExp.FCodeList.IndexOf(LCharClass);
+//      Assert(I <> -1, 'bug?: Error at NewCharClassCode');
+//
+//      TRECode(FRegExp.FCodeList[I]).Free;
+//      FRegExp.FCodeList[I] := Result;
+    end
+    // 1要素だけの定義済み文字クラスなら解除
+    else if (LCharClass.FCharCount = 0) and (LCharClass.FCharSetCount = 1) then
+    begin
+      LCharClass.FCharSetList.OwnsObjects := False;
+      Result := LCharClass.FCharSetList[0] as TRECode;
+      if (Result is TREPropertyCode) then
+        (Result as TREPropertyCode).FNegative := LCharClass.FNegative;
+
+      FRegExp.FCodeList.Add(Result);
+
+//      I := FRegExp.FCodeList.IndexOf(LCharClass);
+//      Assert(I <> -1, 'bug?: Error at NewCharClassCode');
+//
+//      TRECode(FRegExp.FCodeList[I]).Free;
+//      FRegExp.FCodeList[I] := Result;
+    end
+    else
+    begin
+      Result := LCharClass.Build;
+      FRegExp.FCodeList.Add(Result);
+    end;
+
+  finally
+    LCharClass.Free;
   end;
-  if FLex.Token <> tkCharClassEnd then
-    FLex.Error(sUnmatchedBigPar);
-
-  // 1 文字だけの文字クラスなら解除
-  if not LCharClass.FNegative and (LCharClass.FCharCount = 1) and
-      (LCharClass.FCharSetCount = 0) then
-  begin
-    Result := NewLiteralCode(LCharClass.FWChar, LCharClass.FOptions);
-    I := FRegExp.FCodeList.IndexOf(LCharClass);
-    Assert(I <> -1, 'bug?: Error at NewCharClassCode');
-
-    TRECode(FRegExp.FCodeList[I]).Free;
-    FRegExp.FCodeList[I] := Result;
-  end
-  // 1要素だけの定義済み文字クラスなら解除
-  else if (LCharClass.FCharCount = 0) and (LCharClass.FCharSetCount = 1) then
-  begin
-    LCharClass.FCharSetList.OwnsObjects := False;
-    Result := LCharClass.FCharSetList[0] as TRECode;
-    if (Result is TREPropertyCode) then
-      (Result as TREPropertyCode).FNegative := LCharClass.FNegative;
-
-    I := FRegExp.FCodeList.IndexOf(LCharClass);
-    Assert(I <> -1, 'bug?: Error at NewCharClassCode');
-
-    TRECode(FRegExp.FCodeList[I]).Free;
-    FRegExp.FCodeList[I] := Result;
-  end
-  else
-    Result := LCharClass;
-
-  LCharClass.Build;
 end;
 
 function TREParser.NewLiteralCode(const Str: REString;
@@ -9558,38 +10027,34 @@ var
 begin
   S := Str;
 
-  if (roIgnoreWidth in AOptions) or (roIgnoreKana in AOptions) then
+  if HasCompareOption(AOptions) then
   begin
     if roIgnoreWidth in AOptions then
       S := ToWide(S);
     if roIgnoreKana in AOptions then
       S := ToKatakana(S);
 
-   Result := TRELiteralCode.Create(FRegExp, S, AOptions);
-//   Result := TRELiteralJCode.Create(FRegExp, S, AOptions);
+    Result := TRELiteralCode.Create(FRegExp, S, AOptions);
   end
   else if roIgnoreCase in AOptions then
   begin
     if roASCIIOnly in AOptions then
     begin
       S := ToFoldCase(S, True);
-      Result := TRELiteralCode.Create(FRegExp, S, AOptions);
-//      Result := TRELiteralIACode.Create(FRegExp, S, AOptions);
+      Result := TRELiteralSimpleACode.Create(FRegExp, S, AOptions);
     end
     else
     begin
       S := ToFoldCase(S, False);
       Result := TRELiteralCode.Create(FRegExp, S, AOptions);
-//      Result := TRELiteralICode.Create(FRegExp, S, AOptions);
     end;
   end
   else
   begin
     if System.Length(S) = 1 then
-      Result := TRELiteralCode.Create(FRegExp, S, AOptions)
-//      Result := TRELiteralOneCode.Create(FRegExp, S, AOptions)
+      Result := TRELiteralSingleCode.Create(FRegExp, S, AOptions)
     else
-      Result := TRELiteralCode.Create(FRegExp, S, AOptions);
+      Result := TRELiteralSimpleCode.Create(FRegExp, S, AOptions);
   end;
 end;
 
@@ -9790,12 +10255,12 @@ begin
 
         if Length(Str) > 1 then
         begin
-          Result := TRELiteralCode.Create(FRegExp, Str, FLex.Options);
+          Result := NewLiteralCode(Str, FLex.Options);
           if Assigned(CalloutCode) then
             CalloutCode.FData.PatternLength := Length(Str);
         end
         else
-          Result := TRELiteralCode.Create(FRegExp, LWChar, LOptions);
+          Result := NewLiteralCode(LWChar, LOptions);
 
         FRegExp.FCodeList.Add(Result);
       end;
@@ -13437,7 +13902,7 @@ begin
   FBackTrackStack := TREBackTrackStack.Create(FRegExp);
   FOptimizeData := FRegExp.FOptimizeData;
   FLeadCode := TREOptimizeDataList.Create;
-  FLeadMap := TRECharClassCode.Create(ARegExp, False, []);
+  FLeadMap := TRECharClassMapIUCode.Create(ARegExp, False, []);
   FACSearch := TRETrieSearch.Create;
   IsLeadMatch := IsLeadAllMatch;
 
@@ -15489,7 +15954,7 @@ begin
     else
     begin
       FLeadCharMode := lcmLeadMap;
-      FLeadMap.Build;
+//@      FLeadMap.Build;
     end;
   end;
 end;
@@ -16051,11 +16516,13 @@ begin
 
     if (FMatchEngine.FLeadStrings <> nil) and
         (FMatchEngine.FLeadStrings.Search.FindText <> '') then
-      SL.Add(sFmtDumpLeadCodeExist + FMatchEngine.FLeadStrings.Search.FindText);
+      SL.Add(sFmtDumpLeadCodeExist + EncodeEscape(
+        FMatchEngine.FLeadStrings.Search.FindText));
 
     if (FMatchEngine.FAnchorStrings <> nil) and
         (FMatchEngine.FAnchorStrings.Search.FindText <> '') then
-      SL.Add(sFmtDumpAnchor + FMatchEngine.FAnchorStrings.Search.FindText);
+      SL.Add(sFmtDumpAnchor + EncodeEscape(
+        FMatchEngine.FAnchorStrings.Search.FindText));
 
     SL.Add(Format('LeadMap: %s', [FMatchEngine.FLeadMap.GetDebugStr]));
 
@@ -16945,6 +17412,8 @@ begin
     R.Free;
   end;
 end;
+
+
 
 
 end.

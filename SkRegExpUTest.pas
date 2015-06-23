@@ -2898,6 +2898,8 @@ begin
   n('\d{2}[A-Z]-[A-Z]{4}\d{4}[A-Z]{2}', '{90150000-000F-0000-0000-0000000FF1CE}');
   n('[^w-]d{4}-d{2}-d{6}', ' 8051-abffdhksa fhdlsakfdjksalfdsa');
 
+  x2('[^ @:]+@[^ @]+', 'メールアドレス:舞san@新人.com', 9, 11);
+  x2('(?aia)[^ abc]+@[^ def]+', 'Email: Asession@新人.com', 9, 14);
 end;
 
 procedure TestQuickSearch;
