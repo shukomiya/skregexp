@@ -1480,7 +1480,7 @@ type
     FLeadTrie: TRECode;
     FAnchorStrings: TRECode;
     FLeadCharMode: TRELeadCharMode;
-    FLeadMap: TRECharClassMapIUCode;
+    FLeadMap: TRECharClassCode;
     FACSearch: TRETrieSearch;
     FLeadCharOffset: TRETextPosRec;
     FAnchorOffset: TRETextPosRec;
@@ -1513,7 +1513,8 @@ type
 
     function MatchEntry(AStr: PWideChar): Boolean;
 
-    procedure CreateLeadMap(NFACode: TRENFAState; var NoMap: Boolean);
+    procedure CreateLeadMap(ALeadMap: TRECharClassCode;
+      NFACode: TRENFAState; var NoMap: Boolean);
     procedure SetupLeadStrings;
     procedure SetupPreMatchStrings;
     procedure SetupLeadMatch(ALeadCharMode: TRELeadCharMode);
@@ -5695,6 +5696,11 @@ begin
 
   FIgnoreCase := ACharClass.IgnoreCase;
   FASCIIOnly := ACharClass.ASCIIOnly;
+  FCharCount := ACharClass.FCharCount;
+  FCharSetCount := ACharClass.FCharSetCount;
+  FHasMap := ACharClass.FHasMap;
+  FHasUnicode := ACharClass.FHasUnicode;
+  FHasRange := ACharClass.FHasRange;
 
   for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
     FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
@@ -13902,7 +13908,7 @@ begin
   FBackTrackStack := TREBackTrackStack.Create(FRegExp);
   FOptimizeData := FRegExp.FOptimizeData;
   FLeadCode := TREOptimizeDataList.Create;
-  FLeadMap := TRECharClassMapIUCode.Create(ARegExp, False, []);
+//@  FLeadMap := TRECharClassCode.Create(ARegExp, False, []);
   FACSearch := TRETrieSearch.Create;
   IsLeadMatch := IsLeadAllMatch;
 
@@ -13916,7 +13922,8 @@ begin
   FSubStack := FRegExp.FSubStack;
 end;
 
-procedure TREMatchEngine.CreateLeadMap(NFACode: TRENFAState; var NoMap: Boolean);
+procedure TREMatchEngine.CreateLeadMap(ALeadMap: TRECharClassCode;
+  NFACode: TRENFAState; var NoMap: Boolean);
 var
   IsFirst, LIgnoreCase, LASCIIOnly: Boolean;
 
@@ -13941,12 +13948,12 @@ var
 
     if Code is TRELiteralCode then
     begin
-      FLeadMap.Add(ToUChar((Code as TRELiteralCode).FSubP), (Code as TRELiteralCode).FCompareOptions);
+      ALeadMap.Add(ToUChar((Code as TRELiteralCode).FSubP), (Code as TRELiteralCode).FCompareOptions);
     end
     else if (Code is TRECharClassCode) and (Code as TRECharClassCode).SimpleClass and
-        (FLeadMap.FNegative = (Code as TRECharClassCode).FNegative) then
+        (ALeadMap.FNegative = (Code as TRECharClassCode).FNegative) then
     begin
-      FLeadMap.Add((Code as TRECharClassCode));
+      ALeadMap.Add((Code as TRECharClassCode));
     end
     else
       NoMap := True;
@@ -13960,7 +13967,7 @@ begin
   while NFACode.Kind = nkGroupBegin do
   begin
     if NFACode.Next <> nil then
-      CreateLeadMap(NFACode.Next, NoMap);
+      CreateLeadMap(ALeadMap, NFACode.Next, NoMap);
 
     NFACode := FStateList[NFACode.TransitTo];
   end;
@@ -13973,7 +13980,7 @@ begin
       nkStar:
         begin
           AddMap(NFACode.Code, NoMap);
-          CreateLeadMap(FStateList[NFACode.TransitTo], NoMap);
+          CreateLeadMap(ALeadMap, FStateList[NFACode.TransitTo], NoMap);
         end;
       nkPlus:
         begin
@@ -13983,20 +13990,20 @@ begin
         begin
           AddMap(NFACode.Code, NoMap);
           if NFACode.Min = 0 then
-            CreateLeadMap(FStateList[NFACode.TransitTo], NoMap);
+            CreateLeadMap(ALeadMap, FStateList[NFACode.TransitTo], NoMap);
         end;
       nkLoop:
         begin
           SubCode := FStateList[NFACode.TransitTo];
           if NFACode.Min = 0 then
           begin
-            CreateLeadMap(FStateList[SubCode.TransitTo], NoMap);
+            CreateLeadMap(ALeadMap, FStateList[SubCode.TransitTo], NoMap);
           end;
 
-          CreateLeadMap(SubCode.Next, NoMap);
+          CreateLeadMap(ALeadMap, SubCode.Next, NoMap);
         end;
       nkAheadMatch, nkSuspend, nkDefine, nkEmpty:
-        CreateLeadMap(FStateList[NFACode.TransitTo], NoMap);
+        CreateLeadMap(ALeadMap, FStateList[NFACode.TransitTo], NoMap);
     else
       begin
         NoMap := True;
@@ -15573,7 +15580,7 @@ begin
   FLeadCode.Clear;
   FLeadStrings := nil;
   FACSearch.Clear;
-  FLeadMap.Clear;
+  FreeAndNil(FLeadMap);
   FLeadCharOffset.Min := 0;
   FLeadCharOffset.Max := 0;
   FAnchorOffset.Min := 0;
@@ -15807,6 +15814,7 @@ procedure TREMatchEngine.SetupLeadStrings;
 var
   I: Integer;
   NFACode, NextCode: TRENFAState;
+  LLeadMap: TRECharClassCode;
   NoMap: Boolean;
   LineHeadCount, TextHeadCount: Integer;
   LiteralCount: Integer;
@@ -15941,20 +15949,25 @@ begin
 
   if FLeadCharMode = lcmNone then
   begin
-    NoMap := False;
-    CreateLeadMap(FStateList[FRegExp.FEntryState], NoMap);
-    if NoMap then
-    begin
-      FLeadMap.Clear;
-      if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
-        FLeadCharMode := lcmHasLead
+    LLeadMap := TRECharClassCode.Create(FRegExp, False, []);
+    try
+      NoMap := False;
+      CreateLeadMap(LLeadMap, FStateList[FRegExp.FEntryState], NoMap);
+      if NoMap then
+      begin
+        FreeAndNil(FLeadMap);
+        if (FLeadCharMode = lcmNone) and (FLeadCode.Count > 0) then
+          FLeadCharMode := lcmHasLead
+        else
+          FLeadCharMode := lcmNone;
+      end
       else
-        FLeadCharMode := lcmNone;
-    end
-    else
-    begin
-      FLeadCharMode := lcmLeadMap;
-//@      FLeadMap.Build;
+      begin
+        FLeadCharMode := lcmLeadMap;
+        FLeadMap := LLeadMap.Build;
+      end;
+    finally
+      LLeadMap.Free;
     end;
   end;
 end;
