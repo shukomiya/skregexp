@@ -1802,7 +1802,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '4.0.0';
+  CONST_VERSION = '3.1.0';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
