@@ -4998,9 +4998,11 @@ begin
   if Ch < 128 then
     Result := IsWordA(Ch)
   else
+{$IFDEF USE_UNICODE_PROPERTY}
     if not FIsASCII then
       Result := IsWordU(Ch)
     else
+{$ENDIF USE_UNICODE_PROPERTY}
       Result := False;
 
   if FNegative then
@@ -5008,7 +5010,6 @@ begin
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
-
 function TREWordCharCode.GetDebugStr: REString;
 begin
   if not FNegative then
@@ -5132,9 +5133,11 @@ begin
   if Ch < 128 then
     Result := IsDigitA(Ch)
   else
+{$IFDEF USE_UNICODE_PROPERTY}
     if not FIsASCII then
       Result := IsDigitU(Ch)
     else
+{$ENDIF USE_UNICODE_PROPERTY}
       Result := False;
   if FNegative then
     Result := not Result;
@@ -5248,9 +5251,11 @@ begin
   if Ch < 128 then
     Result := IsSpacePerlA(Ch)
   else
+{$IFDEF USE_UNICODE_PROPERTY}
     if not FIsASCII then
       Result := IsSpacePerlU(Ch)
     else
+{$ENDIF USE_UNICODE_PROPERTY}
       Result := False;
   if FNegative then
     Result := not Result;
@@ -5712,7 +5717,9 @@ procedure TRECharClassCode.Assign(Source: TRECharClassCode);
 var
   I: Integer;
   LPosix: TREPosixCharClassCode;
+{$IFDEF USE_UNICODE_PROPERTY}
   LPropery: TREPropertyCode;
+{$ENDIF USE_UNICODE_PROPERTY}
 begin
   Clear;
   FNegative := Source.FNegative;
@@ -5751,12 +5758,14 @@ begin
         FCharSetList.Add(TREPosixCharClassCode.Create(
           LPosix.FRegExp, LPosix.FPosixClass, LPosix.FOptions, LPosix.FNegative));
       end
+{$IFDEF USE_UNICODE_PROPERTY}
       else if Source.FCharSetList[I] is TREPropertyCode then
       begin
         LPropery := Source.FCharSetList[I] as TREPropertyCode;
         FCharSetList.Add(TREPropertyCode.Create(
           LPropery.FRegExp, LPropery.FUniCodeProperty, LPropery.FNegative));
       end
+{$ENDIF USE_UNICODE_PROPERTY}
       else
       begin
         FRegExp.Error('bug: not found Chaset Type.');
@@ -6008,6 +6017,7 @@ begin
         Exit;
       end;
     end
+{$IFDEF USE_UNICODE_PROPERTY}
     else if (FCharSetList[Result] is TREPropertyCode) and
         (ACode is TREPropertyCode) then
     begin
@@ -6019,6 +6029,7 @@ begin
         Exit;
       end;
     end
+{$ENDIF USE_UNICODE_PROPERTY}
     else if (FCharSetList[Result] is TREWordCharCode) and
         (ACode is TREWordCharCode) then
     begin
@@ -10004,8 +10015,10 @@ begin
     begin
       LCharClass.FCharSetList.OwnsObjects := False;
       Result := LCharClass.FCharSetList[0] as TRECode;
+{$IFDEF USE_UNICODE_PROPERTY}
       if (Result is TREPropertyCode) then
         (Result as TREPropertyCode).FNegative := LCharClass.FNegative;
+{$ENDIF USE_UNICODE_PROPERTY}
 
       FRegExp.FCodeList.Add(Result);
 
@@ -12272,8 +12285,11 @@ begin
         begin
           if (FBEntryState = AEntry) and AState.IsJoinMatch and
               not ACode.IsVariable and 
-              not (ACode is TREAnyCharCode) and
-              not (ACode is TRECombiningSequence) then
+              not (ACode is TREAnyCharCode)
+{$IFDEF USE_UNICODE_PROPERTY}
+              and not (ACode is TRECombiningSequence)
+{$ENDIF USE_UNICODE_PROPERTY}
+              then
           begin
             if not AState.IsNullMatch and not FInBranch then
               FOptimizeData.Add(NFACode, odkLead, AOffset);
