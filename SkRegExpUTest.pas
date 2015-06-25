@@ -2900,6 +2900,11 @@ begin
 
   x2('[^ @:]+@[^ @]+', 'メールアドレス:舞san@新人.com', 9, 11);
   x2('(?aia)[^ abc]+@[^ def]+', 'Email: Asession@新人.com', 9, 14);
+
+  x2('[a-c\p{IsDigit}]+', 'zabc0123z', 2, 7);
+  x2('[a-c\P{IsAlpha}]+', 'zabc0123z', 2, 7);
+  x2('[^x-z\p{IsDigit}]+', 'zdef0123z', 2, 7);
+
 end;
 
 procedure TestQuickSearch;

@@ -451,8 +451,6 @@ type
 
   TREDigitCharCode = class(TRECharSetCode)
   public
-//    function ExecRepeat(var AStr: PWideChar; IsStar: Boolean): Boolean;
-//      override;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
     function IsMatch(Ch: UChar): Boolean; override;
@@ -5009,45 +5007,6 @@ begin
 end;
 
 { TREDigitCharCode }
-
-//function TREDigitCharCode.ExecRepeat(var AStr: PWideChar;
-//  IsStar: Boolean): Boolean;
-//begin
-//  Result := IsStar;
-//
-//  if FIsASCII then
-//  begin
-//    while AStr < FRegExp.FMatchEndP do
-//    begin
-//      if AStr^ < #128 then
-//      begin
-//        if not IsDigitA(UChar(AStr^)) then
-//        begin
-//          Result := True;
-//          Break;
-//        end;
-//        Inc(AStr);
-//      end
-//      else
-//        Break;
-//    end;
-//  end
-//  else
-//  begin
-//    while AStr < FRegExp.FMatchEndP do
-//    begin
-//      if not IsDigitU(UChar(AStr^)) then
-//      begin
-//        Result := True;
-//        Break;
-//      end;
-//      Inc(AStr);
-//    end;
-//  end;
-//
-//  if FNegative then
-//    Result := not Result;
-//end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
@@ -9952,39 +9911,26 @@ begin
         (LCharClass.FCharSetCount = 0) then
     begin
       Result := NewLiteralCode(LCharClass.FWChar, LCharClass.FOptions);
-      FRegExp.FCodeList.Add(Result);
-
-//      I := FRegExp.FCodeList.IndexOf(LCharClass);
-//      Assert(I <> -1, 'bug?: Error at NewCharClassCode');
-//
-//      TRECode(FRegExp.FCodeList[I]).Free;
-//      FRegExp.FCodeList[I] := Result;
     end
     // 1要素だけの定義済み文字クラスなら解除
     else if (LCharClass.FCharCount = 0) and (LCharClass.FCharSetCount = 1) then
     begin
       LCharClass.FCharSetList.OwnsObjects := False;
       Result := LCharClass.FCharSetList[0] as TRECode;
-{$IFDEF USE_UNICODE_PROPERTY}
-      if (Result is TREPropertyCode) then
-        (Result as TREPropertyCode).FNegative := LCharClass.FNegative
-      else if (Result is TREPosixCharPropertyCode) then
-        (Result as TREPosixCharPropertyCode).FNegative := LCharClass.FNegative;
-{$ENDIF USE_UNICODE_PROPERTY}
-
-      FRegExp.FCodeList.Add(Result);
-
-//      I := FRegExp.FCodeList.IndexOf(LCharClass);
-//      Assert(I <> -1, 'bug?: Error at NewCharClassCode');
-//
-//      TRECode(FRegExp.FCodeList[I]).Free;
-//      FRegExp.FCodeList[I] := Result;
+      if LCharClass.FNegative then
+      begin
+        if (Result as TRECharSetCode).FNegative then
+          (Result as TRECharSetCode).FNegative := False
+        else
+          (Result as TRECharSetCode).FNegative := True;
+      end;
     end
     else
     begin
       Result := LCharClass.Build;
-      FRegExp.FCodeList.Add(Result);
     end;
+
+    FRegExp.FCodeList.Add(Result);
 
   finally
     LCharClass.Free;
@@ -13521,7 +13467,6 @@ ReStart:
       (FRegExp.FSubStack.Index <> LStat.NestLevel) then
   begin
     FRegExp.FSubStack.Index := LStat.NestLevel;
-//@    FRegExp.FGroups.SetCaptureIndex(LStat.NestLevel);
     FRegExp.FGroupStack.Pop(FRegExp.FGroups, LStat.NestLevel);
     FRegExp.FLoopState.SetLoopIndex(LStat.NestLevel);
   end;
@@ -13862,7 +13807,6 @@ begin
   FBackTrackStack := TREBackTrackStack.Create(FRegExp);
   FOptimizeData := FRegExp.FOptimizeData;
   FLeadCode := TREOptimizeDataList.Create;
-//@  FLeadMap := TRECharClassCode.Create(ARegExp, False, []);
   FACSearch := TRETrieSearch.Create;
   IsLeadMatch := IsLeadAllMatch;
 
