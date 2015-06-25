@@ -129,8 +129,8 @@ type
     tkGoSubRelative, tkIfMatch, tkIfMatchRef, tkGlobalPos, tkBranchReset,
     tkExceptEOL,
     tkFail, tkCallout, tkInSubRef, tkDefine, tkbcPrune, tkbcSkip, tkbcMark,
-    tkbcThen, tkbcCommit, tkbcAccept, tkEOLType, tkPropertyPosix,
-    tkNEPropertyPosix);
+    tkbcThen, tkbcCommit, tkbcAccept, tkEOLType, tkPosixCharProperty,
+    tkNEPosixCharProperty);
 
   TREOperator = (opEmply, opConcat, opUnion, opGroup, opLHead, opLTail,
     opPlus, opStar, opBound, opLoop, opNoBackTrack, opKeepPattern,
@@ -179,7 +179,7 @@ type
     procedure SetFindText(const Value: REString);
     procedure SetOptions(const Value: TRECompareOptions);
   protected
-    function IsMatch(AStr: PWideChar; AOptions: TRECompareOptions): Boolean;
+    function Match(AStr: PWideChar; AOptions: TRECompareOptions): Boolean;
   public
     procedure Clear;
     procedure Compile;
@@ -303,8 +303,6 @@ type
     property MatchCount: Integer read FMatchCount;
   end;
 
-  TREASCIICharMapArray = array[0..15] of Byte;
-
   TCalloutData = record
     Version: Integer;
     CalloutNumber: Integer;
@@ -402,22 +400,18 @@ type
   TRETrieCode = class(TRECode)
   private
     FSearch: TRETrieSearch;
-    FQuickSearch: TREQuickSearch;
     function GetMatchCount: Integer;
   protected
     function GetCharLength: TRETextPosRec; override;
     function GetTrieSearch: TRETrieSearch; override;
-    function GetSearch: TREQuickSearch; override;
   public
     constructor Create(ARegExp: TSkRegExp; AOptions: TREOptions);
     destructor Destroy; override;
     procedure Add(ACode: TRECode); inline;
     function Find(AStr: PWideChar): PWideChar; override;
-    function GenerateSearch: Boolean;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
     property MatchCount: Integer read GetMatchCount;
-    property Search: TREQuickSearch read GetSearch;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
@@ -537,8 +531,7 @@ type
     property Items[Index: Integer]: PRECharRangeRec read Get; default;
   end;
 
-  TREIsEqualFunc = function(AStr: PWideChar; var Len: Integer): Boolean of object;
-  TREIsMatchFunc = function(Ch: UChar): Boolean of object;
+  TREASCIICharMapArray = array[0..15] of Byte;
 
   TRECharClassCode = class(TRECode)
   private
@@ -746,21 +739,20 @@ type
 {$ENDIF}
   end;
 
+  TREPosixCharPropertyCode = class(TREPosixCharClassCode)
+  public
+    constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
+      ANegative: Boolean);
+    function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
+    function IsMatch(Ch: UChar): Boolean; override;
+  end;
+
 {$IFDEF USE_UNICODE_PROPERTY}
   TREPropertyCode = class(TRECharSetCode)
   private
     FUniCodeProperty: TUnicodeProperty;
-    FPosixClass: TREPosixClassKind;
-    IsEqualFunc: TREIsEqualFunc;
-    IsMatchFunc: TREIsMatchFunc;
-    function IsPropertyEqual(AStr: PWideChar; var Len: Integer): Boolean;
-    function IsPosixEqual(AStr: PWideChar; var Len: Integer): Boolean;
-    function IsPropertyMatch(Ch: UChar): Boolean;
-    function IsPosixMatch(Ch: UChar): Boolean;
   public
     constructor Create(ARegExp: TSkRegExp; AUnicodeProperty: TUnicodeProperty;
-      ANegative: Boolean); overload;
-    constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
       ANegative: Boolean); overload;
     function IsEqual(AStr: PWideChar; var Len: Integer): Boolean; override;
     function IsOverlap(ACode: TRECode): Boolean; override;
@@ -1212,7 +1204,6 @@ type
     property State: Integer read GetState;
   end;
   
-
   TREBranchStateRec = record
     State, Count: Integer;
   end;
@@ -1281,14 +1272,12 @@ type
     FStartPBuf: PWideChar;
     FEndP: PWideChar;
     FSuccess: Boolean;
-    FAlwaysSuccess: Boolean;
     function GetIndex: Integer;
     function GetLength: Integer;
     function GetStrings: REString;
     function GetSubExpression: REString;
     procedure SetEndP(const Value: PWideChar);
     procedure SetStartP(const Value: PWideChar);
-    procedure SetAlwaysSuccess(const Value: Boolean);
   protected
     procedure Clear;
     property GroupBegin: TRENFAState read FGroupBegin write FGroupBegin;
@@ -1310,7 +1299,6 @@ type
     property SubExpression: REString read GetSubExpression;
     property JoinMatch: Boolean read FJoinMatch;
     property CharLength: TRETextPosRec read FCharLength write FCharLength;
-    property AlwaysSuccess: Boolean read FAlwaysSuccess write SetAlwaysSuccess;
   end;
 
   TGroupCollectionEnumerator = class
@@ -3418,7 +3406,7 @@ begin
   FTextLen := ATextLen;
   FTextEndP := AStr + ATextLen;
 
-  Result := IsMatch(AStr, FOptions);
+  Result := Match(AStr, FOptions);
 end;
 
 function TREQuickSearch.ExecNext: Boolean;
@@ -3441,10 +3429,10 @@ begin
 
   FTextLen := FTextEndP - AStr;
 
-  Result := IsMatch(AStr, FOptions);
+  Result := Match(AStr, FOptions);
 end;
 
-function TREQuickSearch.IsMatch(AStr: PWideChar;
+function TREQuickSearch.Match(AStr: PWideChar;
   AOptions: TRECompareOptions): Boolean;
 var
   Index, L, Low: Integer;
@@ -4775,8 +4763,8 @@ end;
 
 destructor TRETrieCode.Destroy;
 begin
-  if Assigned(FQuickSearch) then
-    FQuickSearch.Free;
+//  if Assigned(FQuickSearch) then
+//    FQuickSearch.Free;
   FSearch.Free;
   inherited;
 end;
@@ -4787,28 +4775,6 @@ begin
     Result := FSearch.StartP
   else
     Result := nil;
-end;
-
-function TRETrieCode.GenerateSearch: Boolean;
-var
-  S: REString;
-begin
-  Result := False;
-  S := FSearch.GetPrefix;
-  if S <> '' then
-  begin
-    FQuickSearch := TREQuickSearch.Create;
-    FQuickSearch.Options := FSearch.FOptions;
-    if coIgnoreCase in FQuickSearch.Options then
-      S := ToFoldCase(S, coASCIIOnly in FQuickSearch.Options);
-    if coIgnoreWidth in FQuickSearch.Options then
-      S := ToWide(S);
-    if coIgnoreKana in FQuickSearch.Options then
-      S :=  ToKatakana(S);
-
-    FQuickSearch.FindText := S;
-    Result := True;
-  end;
 end;
 
 function TRETrieCode.GetCharLength: TRETextPosRec;
@@ -4826,11 +4792,6 @@ end;
 function TRETrieCode.GetMatchCount: Integer;
 begin
   Result := FSearch.MatchCount;
-end;
-
-function TRETrieCode.GetSearch: TREQuickSearch;
-begin
-  Result := FQuickSearch;
 end;
 
 function TRETrieCode.GetTrieSearch: TRETrieSearch;
@@ -5047,25 +5008,6 @@ begin
   end;
 end;
 
-//function TREWordCharCode.Match(Ch: UChar): Boolean;
-//begin
-//  Result := False;
-//
-//  if Ch < 128 then
-//  begin
-//    Result := IsWordA(Ch);
-//{$IFDEF USE_UNICODE_PROPERTY}
-//  end
-//  else
-//  begin
-//    if not FIsASCII then
-//      Result := IsWordU(Ch);
-//{$ENDIF USE_UNICODE_PROPERTY}
-//  end;
-//  if FNegative then
-//    Result := not Result;
-//end;
-
 { TREDigitCharCode }
 
 //function TREDigitCharCode.ExecRepeat(var AStr: PWideChar;
@@ -5073,17 +5015,38 @@ end;
 //begin
 //  Result := IsStar;
 //
-//  while AStr < FRegExp.FMatchEndP do
+//  if FIsASCII then
 //  begin
-//    if AStr^ < #128 then
+//    while AStr < FRegExp.FMatchEndP do
 //    begin
-//      if not IsDigitA(UChar(AStr^)) then
-//        Exit;
+//      if AStr^ < #128 then
+//      begin
+//        if not IsDigitA(UChar(AStr^)) then
+//        begin
+//          Result := True;
+//          Break;
+//        end;
+//        Inc(AStr);
+//      end
+//      else
+//        Break;
+//    end;
+//  end
+//  else
+//  begin
+//    while AStr < FRegExp.FMatchEndP do
+//    begin
+//      if not IsDigitU(UChar(AStr^)) then
+//      begin
+//        Result := True;
+//        Break;
+//      end;
 //      Inc(AStr);
-//    end
-//    else
-//      Exit;
+//    end;
 //  end;
+//
+//  if FNegative then
+//    Result := not Result;
 //end;
 
 function TREDigitCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -7149,28 +7112,36 @@ constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
 begin
   inherited Create(ARegExp, [], ANegative);
   FUniCodeProperty := AUnicodeProperty;
-  FPosixClass := pckNone;
-  IsEqualFunc := IsPropertyEqual;
-  IsMatchFunc := IsPropertyMatch;
-end;
-
-constructor TREPropertyCode.Create(ARegExp: TSkRegExp;
-  APosixClass: TREPosixClassKind; ANegative: Boolean);
-begin
-  inherited Create(ARegExp, [], ANegative);
-  FPosixClass := APosixClass;
-  IsEqualFunc := IsPosixEqual;
-  IsMatchFunc := IsPosixMatch;
 end;
 
 function TREPropertyCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
-  Result := IsEqualFunc(AStr, Len);
+  Result := False;
+  Len := 0;
+
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  Result := IsUnicodeProperty(ToUChar(AStr), FUniCodeProperty);
+  if FNegative then
+    Result := not Result;
+
+  if not Result then
+    Len := 0
+  else
+  begin
+    if IsNoLeadChar(AStr^) then
+      Len := 1
+    else
+      Len := 2;
+  end;
 end;
 
 function TREPropertyCode.IsMatch(Ch: UChar): Boolean;
 begin
-  Result := IsUnicodeProperty(Ch, FUniCodeProperty)
+  Result := IsUnicodeProperty(Ch, FUniCodeProperty);
+  if FNegative then
+    Result := not Result;
 end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -7217,101 +7188,6 @@ begin
     else
       Result := True;
   end;
-end;
-
-function TREPropertyCode.IsPosixEqual(AStr: PWideChar;
-  var Len: Integer): Boolean;
-var
-  Ch: UChar;
-begin
-  Result := False;
-  Len := 0;
-  if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  Ch := ToUChar(AStr, Len);
-
-  case FPosixClass of
-    pckAlnum:
-      Result := IsAlnumU(Ch);
-    pckAlpha:
-      Result := IsAlphaU(Ch);
-    pckAscii:
-      Result := IsASCII(Ch);
-    pckBlank:
-      Result := IsBlankU(Ch);
-    pckCntrl:
-      Result := IsCntrlU(Ch);
-    pckDigit:
-      Result := IsDigitU(Ch);
-    pckGraph:
-      Result := IsGraphU(Ch);
-    pckLower:
-      Result := IsLowerU(Ch);
-    pckPrint:
-      Result := IsPrintU(Ch);
-    pckUpper:
-      Result := IsUpperU(Ch);
-    pckPunct:
-      Result := IsPunctU(Ch);
-    pckSpace:
-      Result := IsSpaceU(Ch);
-    pckSpacePerl:
-      Result := IsSpacePerlU(Ch);
-    pckSpaceVertical:
-      Result := IsSpaceVerticalU(Ch);
-    pckSpaceHorizontal:
-      Result := IsSpaceHorizontalU(Ch);
-    pckXdigit:
-      Result := (Ch < 128) and IsXDigit(Ch);
-    pckWord:
-      Result := IsWordU(Ch);
-    pckAssigned:
-      Result := IsAssignedU(Ch);
-  else
-    Result := True;
-  end;
-
-  if FNegative then
-    Result := not Result;
-end;
-
-function TREPropertyCode.IsPosixMatch(Ch: UChar): Boolean;
-begin
-  Result := IsPosixClassU(Ch, FPosixClass, False);
-  if FNegative then
-    Result := not Result;
-end;
-
-function TREPropertyCode.IsPropertyEqual(AStr: PWideChar;
-  var Len: Integer): Boolean;
-begin
-  Result := False;
-  Len := 0;
-
-  if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  Result := IsUnicodeProperty(ToUChar(AStr), FUniCodeProperty);
-  if FNegative then
-    Result := not Result;
-
-  if not Result then
-    Len := 0
-  else
-  begin
-    if IsNoLeadChar(AStr^) then
-      Len := 1
-    else
-      Len := 2;
-  end;
-end;
-
-function TREPropertyCode.IsPropertyMatch(Ch: UChar): Boolean;
-begin
-  Result := IsUnicodeProperty(Ch, FUniCodeProperty);
-  if FNegative then
-    Result := not Result;
 end;
 
 {$ENDIF USE_UNICODE_PROPERTY}
@@ -7463,6 +7339,80 @@ end;
 //  if FNegative then
 //    Result := not Result;
 //end;
+
+
+{ TREPosixCharPropertyCode }
+
+constructor TREPosixCharPropertyCode.Create(ARegExp: TSkRegExp;
+  APosixClass: TREPosixClassKind; ANegative: Boolean);
+begin
+  inherited Create(ARegExp, FPosixClass, [], ANegative);
+  FPosixClass := APosixClass;
+end;
+
+function TREPosixCharPropertyCode.IsEqual(AStr: PWideChar;
+  var Len: Integer): Boolean;
+var
+  Ch: UChar;
+begin
+  Result := False;
+  Len := 0;
+  if FRegExp.FMatchEndP = AStr then
+    Exit;
+
+  Ch := ToUChar(AStr, Len);
+
+  case FPosixClass of
+    pckAlnum:
+      Result := IsAlnumU(Ch);
+    pckAlpha:
+      Result := IsAlphaU(Ch);
+    pckAscii:
+      Result := IsASCII(Ch);
+    pckBlank:
+      Result := IsBlankU(Ch);
+    pckCntrl:
+      Result := IsCntrlU(Ch);
+    pckDigit:
+      Result := IsDigitU(Ch);
+    pckGraph:
+      Result := IsGraphU(Ch);
+    pckLower:
+      Result := IsLowerU(Ch);
+    pckPrint:
+      Result := IsPrintU(Ch);
+    pckUpper:
+      Result := IsUpperU(Ch);
+    pckPunct:
+      Result := IsPunctU(Ch);
+    pckSpace:
+      Result := IsSpaceU(Ch);
+    pckSpacePerl:
+      Result := IsSpacePerlU(Ch);
+    pckSpaceVertical:
+      Result := IsSpaceVerticalU(Ch);
+    pckSpaceHorizontal:
+      Result := IsSpaceHorizontalU(Ch);
+    pckXdigit:
+      Result := (Ch < 128) and IsXDigit(Ch);
+    pckWord:
+      Result := IsWordU(Ch);
+    pckAssigned:
+      Result := IsAssignedU(Ch);
+  else
+    Result := True;
+  end;
+
+  if FNegative then
+    Result := not Result;
+end;
+
+function TREPosixCharPropertyCode.IsMatch(Ch: UChar): Boolean;
+begin
+  Result := IsPosixClassU(Ch, FPosixClass, False);
+  if FNegative then
+    Result := not Result;
+end;
 
 { TREGlobalPosCode }
 
@@ -9392,9 +9342,9 @@ begin
         else
         begin
           if FToken = tkNEProperty then
-            FToken := tkNEPropertyPosix
+            FToken := tkNEPosixCharProperty
           else
-            FToken := tkPropertyPosix;
+            FToken := tkPosixCharProperty;
 
             FPosixClass := LPosix;
         end;
@@ -9921,10 +9871,10 @@ begin
         LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, False));
       tkNEProperty:
         LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, True));
-      tkPropertyPosix:
-        LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, False));
-      tkNEPropertyPosix:
-        LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, True));
+      tkPosixCharProperty:
+        LCharClass.Add(TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, False));
+      tkNEPosixCharProperty:
+        LCharClass.Add(TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, True));
   {$ENDIF USE_UNICODE_PROPERTY}
       tkHorizontalSpaceChar:
         LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, False));
@@ -9945,7 +9895,7 @@ begin
       (FLex.Token = tkSpaceChar) or (FLex.Token = tkNESpaceChar) or
       (FLex.Token = tkPosixBracket) or (FLex.Token = tkNEPosixBracket) or
       (FLex.Token = tkProperty) or (FLex.Token = tkNEProperty) or
-      (FLex.Token = tkPropertyPosix) or (FLex.Token = tkNEPropertyPosix) or
+      (FLex.Token = tkPosixCharProperty) or (FLex.Token = tkNEPosixCharProperty) or
       (FLex.Token = tkHorizontalSpaceChar) or
       (FLex.Token = tkNEHorizontalSpaceChar) or (FLex.Token = tkVerticalSpaceChar)
       or (FLex.Token = tkNEVerticalSpaceChar) do
@@ -9976,10 +9926,10 @@ begin
           LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, False));
         tkNEProperty:
           LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.UnicodeProperty, True));
-        tkPropertyPosix:
-          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, False));
-        tkNEPropertyPosix:
-          LCharClass.Add(TREPropertyCode.Create(FRegExp, FLex.PosixClass, True));
+        tkPosixCharProperty:
+          LCharClass.Add(TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, False));
+        tkNEPosixCharProperty:
+          LCharClass.Add(TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, True));
     {$ENDIF USE_UNICODE_PROPERTY}
         tkHorizontalSpaceChar:
           LCharClass.Add(TREHorizontalSpaceCharCode.Create(FRegExp, False));
@@ -10017,7 +9967,9 @@ begin
       Result := LCharClass.FCharSetList[0] as TRECode;
 {$IFDEF USE_UNICODE_PROPERTY}
       if (Result is TREPropertyCode) then
-        (Result as TREPropertyCode).FNegative := LCharClass.FNegative;
+        (Result as TREPropertyCode).FNegative := LCharClass.FNegative
+      else if (Result is TREPosixCharPropertyCode) then
+        (Result as TREPosixCharPropertyCode).FNegative := LCharClass.FNegative;
 {$ENDIF USE_UNICODE_PROPERTY}
 
       FRegExp.FCodeList.Add(Result);
@@ -10523,15 +10475,15 @@ begin
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
-    tkPropertyPosix:
+    tkPosixCharProperty:
       begin
-        Result := TREPropertyCode.Create(FRegExp, FLex.PosixClass, False);
+        Result := TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, False);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
-    tkNEPropertyPosix:
+    tkNEPosixCharProperty:
       begin
-        Result := TREPropertyCode.Create(FRegExp, FLex.PosixClass, True);
+        Result := TREPosixCharPropertyCode.Create(FRegExp, FLex.PosixClass, True);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
       end;
@@ -12927,20 +12879,6 @@ begin
   FSuccess := False;
 end;
 
-procedure TGroup.SetAlwaysSuccess(const Value: Boolean);
-begin
-  if FAlwaysSuccess <> Value then
-  begin
-    FAlwaysSuccess := Value;
-    if FAlwaysSuccess then
-    begin
-      FSuccess := True;
-      if FEndP = nil then
-        SetEndP(FStartPBuf);
-    end;
-  end;
-end;
-
 procedure TGroup.SetEndP(const Value: PWideChar);
 begin
   if (FStartPBuf <> nil) and (not FSuccess) then
@@ -14647,7 +14585,8 @@ begin
           end;
         nkTrie:
           begin
-            if NFACode.Code.IsEqual(AStr, Len) then
+            if (AStr < FRegExp.FMatchEndP) and
+                NFACode.Code.IsEqual(AStr, Len) then
             begin
               if NFACode.Code.TrieSearch.MatchCount > 0 then
                 Stack.Push(NFACode, AStr, True);
@@ -16553,7 +16492,8 @@ begin
       SL.Add(sFmtDumpAnchor + EncodeEscape(
         FMatchEngine.FAnchorStrings.Search.FindText));
 
-    SL.Add(Format('LeadMap: %s', [FMatchEngine.FLeadMap.GetDebugStr]));
+    if Assigned(FMatchEngine.FLeadMap) then
+      SL.Add(Format('LeadMap: %s', [FMatchEngine.FLeadMap.GetDebugStr]));
 
     SL.Add('');
     SL.Add(Format('LeadCharMode: %s', [LeadCharModeToStr(FMatchEngine.FLeadCharMode)]));
@@ -17441,7 +17381,6 @@ begin
     R.Free;
   end;
 end;
-
 
 
 
