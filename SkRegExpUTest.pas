@@ -1601,7 +1601,7 @@ begin
   x2('(?i)ffiffl|xyz|ppp', 'abcdef'#$FB03#$FB04, 7, 2);
   x2('(?i)\x{FB03}\x{FB04}|xyz|ppp', 'abcdefffiffl', 7, 6);
   x2('(?i)\x{DF}|ab|de', 'stss', 3, 2);
-  x2('(?i)ss|ab|de', 'st'#$00DF, 3, 1);
+  x2('(?i)ss|ab|de', TSkRegExp.DecodeEscape('st\x{00DF}'), 3, 1);
   x2('[\s\v\h\w]+', 'Do you'#0009'know'#$000B'me?', 1, 14);
 
 
@@ -1629,7 +1629,7 @@ begin
   x2('[[:blank:]]+', #0009'　　', 1, 3);
   x2('[[:space:]]+', #0009'　　', 1, 3);
   n('[[:space:]]+', #$0085);
-  x2('[[:spaceperl:]]+', ' '#$0085, 1, 2);
+  x2('[[:spaceperl:]]+', TSkRegExp.DecodeEscape(' \x{0085}'), 1, 2);
   x2('[[:spaceperl:]]+', #$0009' '#$2028#$2029#$0085, 1, 5);
   n('[[:spaceperl:]]+', #$000B);
   x2('[[:cntrl:]]+', #0009#0007#0003, 1, 3);
@@ -2903,8 +2903,11 @@ begin
 
   x2('[a-c\p{IsDigit}]+', 'zabc0123z', 2, 7);
   x2('[a-c\P{IsAlpha}]+', 'zabc0123z', 2, 7);
-  x2('[^x-z\p{IsDigit}]+', 'zdef0123z', 2, 7);
+  x2('[^x-z\p{IsDigit}]+', 'zdef0123z', 2, 3);
 
+  x2('[あ-う\p{IsDigit}]+', 'わあいう0123ん', 2, 7);
+  x2('[あ-う\P{IsAlpha}]+', 'わあいう0123ん', 2, 7);
+  x2('[^わ-ん\p{IsDigit}]+', 'わあいう0123ん', 2, 3);
 end;
 
 procedure TestQuickSearch;
