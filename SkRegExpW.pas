@@ -8694,7 +8694,7 @@ begin
   if FLex.Token <> tkCharClassEnd then
     FLex.Error(sUnmatchedBigPar);
 
-  // Ⅰ文字だけの文字クラスなら解除
+  // １文字だけの文字クラスなら解除
   if not CharClass.FNegative and (CharClass.FCodeList.Count = 0) and
     (CharClass.FMap.Count = 1) then
   begin

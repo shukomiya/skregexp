@@ -331,6 +331,9 @@ end;
 
 procedure TTestSkRegExp.TestRepace;
 begin
+  FRegExp.Expression := '(\d{2,4})\s?\-\s?ab';
+  Check(FRegExp.Replace('20-ab abc', '$1-abc') = '20-abc abc', '20-ab abc');
+
   FRegExp.Expression := 'e';
   Check(FRegExp.Replace('We have Beatles.', '$1') = 'W hav Batls.',
     'We have Beatles.');
@@ -732,7 +735,7 @@ procedure SyntaxCheck(ADest: TStrings);
     end;
   end;
 
-  procedure CheckReplate;
+  procedure CheckReplace;
   var
     R: TSkRegExp;
   begin
@@ -757,7 +760,7 @@ procedure SyntaxCheck(ADest: TStrings);
 
 begin
 
-  CheckReplate;
+  CheckReplace;
   //2.1 add
   sx('(?<n>a)\1', 'aa', [roNamedGroupOnly]);
   sx('(?<n>a)\k<1>', 'aa', [roNamedGroupOnly]);
@@ -1268,6 +1271,7 @@ procedure Test(ADest: TStrings);
   begin
     R := TSkRegExp.Create;
     try
+      try
       R.Expression := Expression;
       R.InputString := Source;
       if R.ExecPos(1) then
@@ -1281,7 +1285,10 @@ procedure Test(ADest: TStrings);
           Inc(I);
         until not R.ExecNext;
       end;
-
+      except
+        on E: ESkRegExp do
+        ADest.Add('(e):''' + Expression + ''', ''' + Source + '''');
+      end;
     finally
       R.Free;
     end;
@@ -1507,6 +1514,9 @@ begin
   x2('(?m)(*CRLF)^123$', '123'#$000D#$000A'abc', 1, 3);
   x2('(?m)(*CRLF)abc\Z', '123'#$000D#$000A'abc', 6, 3);
 
+  x2('^[0-9]+|^[a-z]+', '123', 1, 3);
+  x2('(?m)^[0-9]+|^[a-z]+', '@123'#$000D#$000A'abc', 7, 3);
+
   // 1.2.5 add
   x2('(?w)[1-5]+', 'ab123', 3, 3, [], 1);
   x2('(?wk)[ｱ-ｵ]+', 'abアオイ', 3, 3, [], 1);
@@ -1613,6 +1623,7 @@ begin
   x2('[[:cntrl:]]+', #0001#0003#$0019, 1, 3);
   x2('[[:digit:]]+', '0123', 1, 4);
   x2('[[:digit:]]+', '-9870', 2, 4);
+  x2('[[:word:]]+', '拝啓貴社, abc123', 1, 4);
   x2('[[:xdigit:]]+', '0ABf', 1, 4);
   x2('[[:punct:]]+', ',.。、', 1, 4);
   x2('[[:blank:]]+', #0009'　　', 1, 3);
@@ -2883,6 +2894,17 @@ begin
   x2('(?w)[abc]+', 'aａａｂc', 1, 5);
   x2('(?w)[abc]+', 'aｂccａa', 1, 6);
   x2('(?k)[パハバ]+', 'はばぱぱは', 1, 5);
+
+  n('\d{2}[A-Z]-[A-Z]{4}\d{4}[A-Z]{2}', '{90150000-000F-0000-0000-0000000FF1CE}');
+  n('[^w-]d{4}-d{2}-d{6}', ' 8051-abffdhksa fhdlsakfdjksalfdsa');
+
+  x2('[^ @:]+@[^ @]+', 'メールアドレス:舞san@新人.com', 9, 11);
+  x2('(?aia)[^ abc]+@[^ def]+', 'Email: Asession@新人.com', 9, 14);
+
+  x2('[a-c\p{IsDigit}]+', 'zabc0123z', 2, 7);
+  x2('[a-c\P{IsAlpha}]+', 'zabc0123z', 2, 7);
+  x2('[^x-z\p{IsDigit}]+', 'zdef0123z', 2, 3);
+
 end;
 
 procedure TestQuickSearch;
