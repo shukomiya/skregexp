@@ -15767,18 +15767,6 @@ begin
       FLeadCharMode := lcmTextTop;
       Exit;
     end;
-
-//    if IsLiteral then
-//    begin
-//      NFACode := FStateList[FRegExp.FEntryState];
-//      NextCode := FStateList[NFACode.TransitTo];
-//
-//      if (NFACode.Kind = nkChar) and (NFACode.Next = nil) and
-//        (NextCode.Kind = nkEnd) then
-//        FLeadCharMode := lcmSimple
-//      else
-//        FLeadCharMode := lcmFirstLiteral;
-//    end;
   end
   else if FLeadCode.Count > 1 then
   begin
@@ -15799,22 +15787,6 @@ begin
       begin
         Inc(TextHeadCount);
       end
-//      else if (FLeadCode[I].Code is TRELiteralCode) then
-//      begin
-//        FACSearch.Add(FLeadCode[I].Code);
-//        if I = 0 then
-//        begin
-//          FAnchorOffset.Min := FLeadCode[I].Offset.Min;
-//          FAnchorOffset.Max := FLeadCode[I].Offset.Max;
-//        end
-//        else
-//        begin
-//          FAnchorOffset.Min := Min(FAnchorOffset.Min, FLeadCode[I].Offset.Min);
-//          FAnchorOffset.Max := Min(FAnchorOffset.Max, FLeadCode[I].Offset.Max);
-//        end;
-//
-//        Inc(LiteralCount);
-//      end
       else
       begin
         FLeadCharMode := lcmNone;
@@ -17325,7 +17297,6 @@ begin
     R.Free;
   end;
 end;
-
 
 
 end.

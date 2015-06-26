@@ -135,11 +135,12 @@ resourcestring
   sConditionNotRecognized             = '%sCondition not recognized';
   sUnterminatedVerbPattern            = '%sUnterminated verb pattern';
   sUseNamedGroup                      = '%sNumberd backref/call is not allowed.(use name)';
+  sMissingLeftBraceOnESCo             = '%sMissing left brace on \o{}';
   sMissingRightBraceOnEsco            = '%sMissing right braces on \o{}';
   sOctalDigitIsRequired               = '%sOctal-digit is required';
   sModifierCanNotBeDisabled           = '%sModifier can not be disable';
-  sModifierCanNotBeDisabledInCaret    = '%sModifire can not be disable in "(?^...)";
-  sModifiersareMutuallyExclusive      = '%sModifiers "adlu" are mutually exclusive;
+  sModifierCanNotBeDisabledInCaret    = '%sModifire can not be disable in "(?^...)"';
+  sModifiersareMutuallyExclusive      = '%sModifiers "adlu" are mutually exclusive';
   sModifierAMayAppearAMaximumOfTwice  = '%sModifier "a" may appear a maximum of twice';
   // end of compile error
 
