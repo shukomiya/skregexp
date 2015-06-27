@@ -1,5 +1,23 @@
 ﻿正規表現ライブラリ SkRegExp 更新履歴
 
+   3.1.0 2015/6/27
+       ・修正）文字クラスで大きな範囲の文字 ( ex. [\x{0}-\x{ffff}] ) を指定すると
+               無限ループ並みに処理速度が落ちるバグを修正。
+       ・修正）大文字小文字を区別、全角半角を区別、ひらがなカタカナを区別、
+               検索文字列がASCII範囲の文字と言った、もっともよく使われるマッチの速度を
+               30％高速化。
+       ・修正）TREMatchEngine.MatchPrim の内部をループ構造にすることで
+               メソッド呼び出しを減らした。
+       ・変更）ライセンスをMPL1.1からMPL2.0にアップグレード。
+       ・変更）TRELineBreakKind の値 lCRLF を lbCRLF に変更。
+       ・変更）リテラル文字のみの選択（｜）は Trie search を使うようにした。
+       ・変更）文字種判定のASCII範囲版をビットマップテーブルを使うように変更。
+       ・削除）TRECharMap クラスを削除。同じ機能を TRECharClassCode の変更でサポート。
+       ・削除）未使用のコードを削除。
+       ・削除）TRECapture クラス と TRECaptureCollection クラスを削除。
+               元々は再帰呼び出し対応のために作ったクラスだが、それ以外では使われない上、
+               オーバーヘッドも大きいので使用を止めた。
+       ・新規）再帰呼び出し時のキャプチャバッファとして TREGroupStack クラスを追加。
    3.0.8 2015/5/30
    　　・修正）TSkRegExp.Exec と TSkRegExp.ExecNext、または
                TSkRegExp.ExecPos と TSkRegExp.ExecNext を使ったマッチの繰り返し時に

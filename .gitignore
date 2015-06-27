@@ -1,1 +1,6 @@
 *.bak
+/__history
+/GpProf.pas
+/gpprofh.pas
+/UnicodeData.txt
+/re_tests.txt
