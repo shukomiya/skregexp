@@ -11295,6 +11295,18 @@ begin
     end;
     Result := Format(sFmtDumpNFA_Bound, [MatchTypeStr, FMin, FMax, FTransitTo, FCode.GetDebugStr]);
   end
+  else if FKind = nkQuest then
+  begin
+    case FMatchKind of
+      lkReluctant:
+        MatchTypeStr := 'R';
+      lkPossessive:
+        MatchTypeStr := 'P';
+    else
+      MatchTypeStr := 'G';
+    end;
+    Result := Format(sFmtDumpNFA_Quest, [MatchTypeStr, FTransitTo, FCode.GetDebugStr]);
+  end
   else if FKind = nkMatchEnd then
     Result := Format(sFmtDumpNFA_MatchEnd, [FTransitTo])
   else if FKind = nkGroupBegin then

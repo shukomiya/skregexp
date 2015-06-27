@@ -2,10 +2,13 @@
   SkRegExpConst.pas (SkRegExp regular expression library)
   **************************************************************************** *)
 (*
-  The contents of this file are subject to the Mozilla Public License
-  Version 1.1 (the "License"); you may not use this file except in
-  compliance with the License. You may obtain a copy of the License at
-  http://www.mozilla.org/MPL/
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+  This Source Code Form is ÅgIncompatible With Secondary LicensesÅh, as
+  defined by the Mozilla Public License, v. 2.0.
 
   Software distributed under the License is distributed on an "AS IS"
   basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
@@ -14,13 +17,14 @@
 
   The Original Code is SkRegExpConst.pas(for SkRegExp Library).
 
-  The Initial Developer of the Original Code is Shuichi Komiya.
+  The Initial Developer of the Original Code is Komiya Shuichi.
 
-  E-mail: shu AT k DOT email DOT ne DOT jp
+  E-mail: shu AT komish DOT jp
   URL:    http://skregexp.komish.com/
 
   Portions created by Komiya Shuichi are
-  Copyright (C) 2007-2013 Komiya Shuichi. All Rights Reserved.
+  Copyright (C) 2007-2015 Komiya Shuichi. All Rights Reserved.
+
 *)
 
 unit SkRegExpConst;
@@ -131,11 +135,12 @@ resourcestring
   sConditionNotRecognized             = '%sCondition not recognized';
   sUnterminatedVerbPattern            = '%sUnterminated verb pattern';
   sUseNamedGroup                      = '%sNumberd backref/call is not allowed.(use name)';
+  sMissingLeftBraceOnESCo             = '%sMissing left brace on \o{}';
   sMissingRightBraceOnEsco            = '%sMissing right braces on \o{}';
   sOctalDigitIsRequired               = '%sOctal-digit is required';
   sModifierCanNotBeDisabled           = '%sModifier can not be disable';
-  sModifierCanNotBeDisabledInCaret    = '%sModifire can not be disable in "(?^...)";
-  sModifiersareMutuallyExclusive      = '%sModifiers "adlu" are mutually exclusive;
+  sModifierCanNotBeDisabledInCaret    = '%sModifire can not be disable in "(?^...)"';
+  sModifiersareMutuallyExclusive      = '%sModifiers "adlu" are mutually exclusive';
   sModifierAMayAppearAMaximumOfTwice  = '%sModifier "a" may appear a maximum of twice';
   // end of compile error
 
@@ -150,6 +155,7 @@ resourcestring
 {$IFDEF SKREGEXP_DEBUG}
   { for debug }
   sLiteral                            = 'EXACT%s <%s> ';
+  sTrie                               = 'TRIE [%s] ';
   sAnyChar                            = 'ANY ';
   sWordChar                           = 'WORD ';
   sNegativeWordChar                   = 'NWORD ';
@@ -203,6 +209,7 @@ resourcestring
   sFmtDumpNFA_LoopEnd                 = 'LOOPEND (%d) :';
   sFmtDumpNFA_Star                    = 'STAR%s (%d) %s :';
   sFmtDumpNFA_Plus                    = 'PLUS%s (%d) %s :';
+  sFmtDumpNFA_Quest                   = 'QUEST%s (%d) %s :';
   sFmtDumpNFA_Bound                   = 'BOUND%s[%d..%d] (%d) %s :';
 
   sFmtDumpNFA_Loop                    = 'LOOP%s [%d..%d] (%d) :';
