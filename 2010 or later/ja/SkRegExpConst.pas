@@ -171,8 +171,10 @@ resourcestring
   sCharClass                          = 'CCLASS [';
   sNEGCharClass                       = 'NEG-CCLASS [';
   sCombiningSequence                  = 'COMBSQ ';
-  sBoundaryCode                       = 'BOUNDA ';
-  sNegativeBoundaryCode               = 'NBOUNDA ';
+  sBoundaryCode                       = 'BOUNDU ';
+  sBoundaryACode                      = 'BOUNDA ';
+  sNegativeBoundaryCode               = 'NBOUNDU ';
+  sNegativeBoundaryACode              = 'NBOUNDA ';
   sFmtGroupReference                  = 'REF%d ';
   sFmtGroupNameReference              = 'REF[%s]';
   sHeadOfLineCode                     = 'BOL';
@@ -210,7 +212,7 @@ resourcestring
   sFmtDumpNFA_Star                    = 'STAR%s (%d) %s :';
   sFmtDumpNFA_Plus                    = 'PLUS%s (%d) %s :';
   sFmtDumpNFA_Quest                   = 'QUEST%s (%d) %s :';
-  sFmtDumpNFA_Bound                   = 'BOUND%s[%d..%d] (%d) %s :';
+  sFmtDumpNFA_Bound                   = 'CURLY%s[%d..%d] (%d) %s :';
 
   sFmtDumpNFA_Loop                    = 'LOOP%s [%d..%d] (%d) :';
   sFmtDumpNFA_AheadMatch              = 'AMATCH (%d) :';

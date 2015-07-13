@@ -1791,7 +1791,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.0';
+  CONST_VERSION = '3.1.1';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -5666,15 +5666,23 @@ begin
     for I := 0 to Source.FCharSetList.Count - 1 do
     begin
       if Source.FCharSetList[I] is TREWordCharCode then
-        FCharSetList.Add(TREWordCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+        FCharSetList.Add(TREWordCharCode.Create(Source.FRegExp,
+          (Source.FCharSetList[I] as TREWordCharCode).FOptions,
+          (Source.FCharSetList[I] as TREWordCharCode).FNegative))
       else if Source.FCharSetList[I] is TREDigitCharCode then
-        FCharSetList.Add(TREDigitCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+        FCharSetList.Add(TREDigitCharCode.Create(Source.FRegExp,
+          (Source.FCharSetList[I] as TREDigitCharCode).FOptions,
+          (Source.FCharSetList[I] as TREDigitCharCode).FNegative))
       else if Source.FCharSetList[I] is TRESpaceCharCode then
-        FCharSetList.Add(TRESpaceCharCode.Create(Source.FRegExp, Source.FOptions, Source.FNegative))
+        FCharSetList.Add(TRESpaceCharCode.Create(Source.FRegExp,
+          (Source.FCharSetList[I] as TRESpaceCharCode).FOptions,
+          (Source.FCharSetList[I] as TRESpaceCharCode).FNegative))
       else if Source.FCharSetList[I] is TREHorizontalSpaceCharCode then
-        FCharSetList.Add(TREHorizontalSpaceCharCode.Create(Source.FRegExp, FNegative))
+        FCharSetList.Add(TREHorizontalSpaceCharCode.Create(Source.FRegExp,
+        (Source.FCharSetList[I] as TREHorizontalSpaceCharCode).FNegative))
       else if Source.FCharSetList[I] is TREVerticalSpaceCharCode then
-        FCharSetList.Add(TREVerticalSpaceCharCode.Create(Source.FRegExp, Source.FNegative))
+        FCharSetList.Add(TREVerticalSpaceCharCode.Create(Source.FRegExp,
+        (Source.FCharSetList[I] as TREVerticalSpaceCharCode).FNegative))
       else if Source.FCharSetList[I] is TREPosixCharClassCode then
       begin
         LPosix := Source.FCharSetList[I] as TREPosixCharClassCode;
@@ -6669,10 +6677,11 @@ begin
     if AStr^ < #128 then
     begin
       Len := 1;
-      Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
-
-      if not Result then
+      if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) = 0 then
+      begin
+        Result := False;
         Exit;
+      end;
 
       for I := 0 to FCharSetList.Count - 1 do
       begin
@@ -6906,9 +6915,15 @@ end;
 function TREBoundaryCode.GetDebugStr: REString;
 begin
   if not FNegative then
-    Result := sBoundaryCode
+    if not FIsASCII then
+      Result := sBoundaryCode
+    else
+      Result := sBoundaryACode
   else
-    Result := sNegativeBoundaryCode;
+    if not FIsASCII then
+      Result := sNegativeBoundaryCode
+    else
+      Result := sNegativeBoundaryACode
 end;
 {$ENDIF}
 
@@ -10058,16 +10073,21 @@ var
 begin
   S := Str;
 
+{$IFDEF JapaneseExt}
   if HasCompareOption(AOptions) then
   begin
     if roIgnoreWidth in AOptions then
       S := ToWide(S);
     if roIgnoreKana in AOptions then
       S := ToKatakana(S);
+    if roIgnoreCase in AOptions then
+      S := ToFoldCase(S, roASCIIOnly in AOptions);
 
     Result := TRELiteralCode.Create(FRegExp, S, AOptions);
   end
-  else if roIgnoreCase in AOptions then
+  else
+{$ENDIF JapaneseExt}
+  if roIgnoreCase in AOptions then
   begin
     if roASCIIOnly in AOptions then
     begin

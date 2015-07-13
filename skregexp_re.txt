@@ -1,6 +1,16 @@
 SkRegExp Regular Expressions Version 3.0.4
 
-1. Modifiers
+1. NEWLINE CONVENTION
+
+These are recognized only at the very start of the pattern or after option settings with a similar syntax.
+
+  (*CR)           carriage return only
+  (*LF)           linefeed only
+  (*CRLF)         carriage return followed by linefeed
+  (*ANYCRLF)      all three of the above
+  (*ANY)          any Unicode newline sequence
+
+2. MODIFIERS
 
   m  Multiline mode - ^ and $ match internal lines
   s  match as a Single line - . matches \n
@@ -10,7 +20,7 @@ SkRegExp Regular Expressions Version 3.0.4
   aa (two a's) also /i matches exclude ASCII/non-ASCII
   l, u, d  match according to Unicode rules
        
-2. Syntax
+3. SYNTAX
 
   \       Escapes the character immediately following it
   .       Matches any single character except a newline (unless /s is
@@ -29,11 +39,14 @@ SkRegExp Regular Expressions Version 3.0.4
   \1, \2, \3 ...           Matches the text from the Nth group
   \g-1 or \g{-1}, \g-2 ... Matches the text from the Nth previous group
   \g{name}     Named backreference
+  \g<1>           Recurse into subpattern number N
+  \g<-1>, \g<+1>  Recurse into Nth previous/next subpattern
+  \g<name>        Recurse into a named subpattern
   \k<name>     Named backreference
   \k'name'     Named backreference
   (?P=name)    Named backreference (python syntax)
 
-3. Escape Sequences 
+4. ESCAPE SEQUENCES 
 
   \a       Alarm (beep)
   \e       Escape
@@ -49,7 +62,7 @@ SkRegExp Regular Expressions Version 3.0.4
   \Q  Disable pattern metacharacters until \E
   \E  End modification
 
-4. Caracter Classes
+5. CARACTER CLASSES
 
   [amy]    Match 'a', 'm' or 'y'
   [f-j]    Dash specifies "range"
@@ -74,7 +87,7 @@ SkRegExp Regular Expressions Version 3.0.4
   \P{...} Match lack of Unicode property with name longer than 1 char
   \X      Match Unicode extended grapheme cluster
 
-5. The POSIX character class syntax
+6. THE POSIX CHARACTER CLASS SYNTAX
 
   [:class:]
   [:^class:]  non class
@@ -97,7 +110,7 @@ SkRegExp Regular Expressions Version 3.0.4
   word        IsWord
   xdigit      IsXDigit
 
-6. Anchor
+7. ANCHOR
 
   ^  Match string start (or line, if /m is used)
   $  Match string end (or line, if /m is used) or before newline
@@ -108,7 +121,7 @@ SkRegExp Regular Expressions Version 3.0.4
   \z Match absolute string end
   \K Keep the stuff left of the \K, don't include it in $&
 
-7. Quantifiers
+8. QUANTIFIERS
 
   greedy
   
@@ -137,7 +150,7 @@ SkRegExp Regular Expressions Version 3.0.4
   {n,}+  Match at least n times and give nothing back
   {n,m}+ Match at least n but not more than m times and give nothing back
   
-8. Extended Constructs
+9. EXTENDED CONSTRUCTS
 
   (?#text)          A comment
   (?:...)           Groups subexpressions without capturing (cluster)
@@ -169,3 +182,28 @@ SkRegExp Regular Expressions Version 3.0.4
                      (RN)      true if recursing into Nth subpattern
                      (R&name)  true if recursing into named subpattern
                      (DEFINE)  always false, no no-pattern allowed
+
+10. CALLOUTS
+
+  (?C)      callout
+  (?Cn)     callout with data n
+
+11. BACKTRACKING CONTROL
+
+The following act immediately they are reached:
+
+  (*ACCEPT)       force successful match
+  (*FAIL)         force backtrack; synonym (*F)
+  (*MARK:NAME)    set name to be passed back; synonym (*:NAME)
+
+The following act only when a subsequent match failure causes a backtrack to reach them. They all force a match failure, but they differ in what happens afterwards. Those that advance the start-of-match point do so only if the pattern is not anchored.
+
+  (*COMMIT)       overall failure, no advance of starting point
+  (*PRUNE)        advance to next starting character
+  (*PRUNE:NAME)   equivalent to (*MARK:NAME)(*PRUNE)
+  (*SKIP)         advance to current matching position
+  (*SKIP:NAME)    advance to position corresponding to an earlier
+                  (*MARK:NAME); if not found, the (*SKIP) is ignored
+  (*THEN)         local failure, backtrack to next alternation
+  (*THEN:NAME)    equivalent to (*MARK:NAME)(*THEN)
+

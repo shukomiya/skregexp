@@ -2908,6 +2908,10 @@ begin
   x2('[あ-う\p{IsDigit}]+', 'わあいう0123ん', 2, 7);
   x2('[あ-う\P{IsAlpha}]+', 'わあいう0123ん', 2, 7);
   x2('[^わ-ん\p{IsDigit}]+', 'わあいう0123ん', 2, 3);
+
+  x2('(?m)\b[G]([^A-Z\d]+)', 'Great and Good', 1, 10);
+  x2('(?m)\b[グ]([^ガ-ゴ\d]+)', 'グレートとグッド', 1, 5);
+
 end;
 
 procedure TestQuickSearch;
