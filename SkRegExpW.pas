@@ -1791,7 +1791,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.1';
+  CONST_VERSION = '3.1.2';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -6781,7 +6781,7 @@ constructor TREBoundaryCode.Create(ARegExp: TSkRegExp; AOptions: TREOptions;
 begin
   inherited Create(ARegExp, AOptions);
   FNegative := ANegative;
-  FIsASCII := GetASCIIMode(FOptions);
+  FIsASCII := roASCIICharClass in FOptions;
 end;
 
 function TREBoundaryCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -6798,22 +6798,14 @@ begin
     begin
       Dec(AStr);
 
-      if AStr^ < #128 then
+      if FIsASCII then
       begin
-        PrevType := IsWordA(UChar(AStr^));
+        PrevType := (AStr^ < #128) and IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
       begin
-        if not FIsASCII then
-        begin
-          if IsNoLeadChar(AStr^) then
-            PrevType := IsWordU(UChar(AStr^))
-          else
-            PrevType := IsWordU(ToUChar(AStr))
-        end
-        else
-          PrevType := False;
+        PrevType := IsWordU(ToUChar(AStr))
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
 
@@ -6824,22 +6816,14 @@ begin
       CurType := False
     else
     begin
-      if AStr^ < #128 then
+      if FIsASCII then
       begin
-        CurType := IsWordA(UChar(AStr^));
+        CurType := (AStr^ < #128) and IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
       begin
-        if not FIsASCII then
-        begin
-          if IsNoLeadChar(AStr^) then
-            CurType := IsWordU(UChar(AStr^))
-          else
-            CurType := IsWordU(ToUChar(AStr))
-        end
-        else
-          CurType := False;
+        CurType := IsWordU(ToUChar(AStr))
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
     end;
@@ -6852,22 +6836,14 @@ begin
     begin
       Dec(AStr);
 
-      if AStr^ < #128 then
+      if FIsASCII then
       begin
-        PrevType := not IsWordA(UChar(AStr^));
+        PrevType := (AStr^ >= #128) or not IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
       begin
-        if not FIsASCII then
-        begin
-          if IsNoLeadChar(AStr^) then
-            PrevType := not IsWordU(UChar(AStr^))
-          else
-            PrevType := not IsWordU(ToUChar(AStr));
-        end
-        else
-          PrevType := True;
+        PrevType := not IsWordU(ToUChar(AStr));
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
 
@@ -6878,22 +6854,14 @@ begin
 
     if AStr <> FRegExp.FMatchEndP then
     begin
-      if AStr^ < #128 then
+      if FIsASCII then
       begin
-        CurType := not IsWordA(UChar(AStr^));
+        CurType := (AStr^ >= #128) or not IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
       begin
-        if not FIsASCII then
-        begin
-          if IsNoLeadChar(AStr^) then
-            CurType := not IsWordU(UChar(AStr^))
-          else
-            CurType := not IsWordU(ToUChar(AStr))
-        end
-        else
-          CurType := True;
+        CurType := not IsWordU(ToUChar(AStr))
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
     end
