@@ -740,6 +740,7 @@ type
 {$ENDIF}
   end;
 
+{$IFDEF USE_UNICODE_PROPERTY}
   TREPosixCharPropertyCode = class(TREPosixCharClassCode)
   public
     constructor Create(ARegExp: TSkRegExp; APosixClass: TREPosixClassKind;
@@ -748,7 +749,6 @@ type
     function IsMatch(Ch: UChar): Boolean; override;
   end;
 
-{$IFDEF USE_UNICODE_PROPERTY}
   TREPropertyCode = class(TRECharSetCode)
   private
     FUniCodeProperty: TUnicodeProperty;
@@ -7351,12 +7351,16 @@ begin
     Result :=
       IsPosixClassA(UChar(AStr^), FPosixClass, roIgnoreCase in FOptions);
     Len := 1;
-{$IFDEF USE_UNICODE_PROPERTY}
   end
   else
   begin
+{$IFDEF USE_UNICODE_PROPERTY}
     Result :=
       IsPosixClassU(ToUChar(AStr, Len), FPosixClass, roIgnoreCase in FOptions);
+{$ELSE USE_UNICODE_PROPERTY}
+    if IsLeadChar(AStr^) then
+      Inc(Len);
+    Inc(Len);
 {$ENDIF USE_UNICODE_PROPERTY}
   end;
 
@@ -7372,9 +7376,11 @@ begin
   if Ch < 128 then
     Result := IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions)
   else
+{$IFDEF USE_UNICODE_PROPERTY}
     if not FIsASCII then
       Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions)
     else
+{$ENDIF USE_UNICODE_PROPERTY}
       Result := False;
   if FNegative then
     Result := not Result;
@@ -7425,6 +7431,8 @@ end;
 
 
 { TREPosixCharPropertyCode }
+
+{$IFDEF USE_UNICODE_PROPERTY}
 
 constructor TREPosixCharPropertyCode.Create(ARegExp: TSkRegExp;
   APosixClass: TREPosixClassKind; ANegative: Boolean);
@@ -7496,6 +7504,8 @@ begin
   if FNegative then
     Result := not Result;
 end;
+
+{$ENDIF USE_UNICODE_PROPERTY}
 
 { TREGlobalPosCode }
 
