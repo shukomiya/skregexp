@@ -2074,12 +2074,22 @@ end;
 
 function IsLeadChar(C: WideChar): Boolean; inline;
 begin
-  Result := (C >= #$D800) and (C <= #$DFFF);
+  Result := (C >= #$D800) and (C <= #$DBFF);
 end;
 
 function IsNoLeadChar(C: WideChar): Boolean; inline;
 begin
-  Result := (C < #$D800) or (C > #$DFFF);
+  Result := (C < #$D800) or (C > #$DBFF);
+end;
+
+function IsFollowChar(C: WideChar): Boolean; inline;
+begin
+  Result := (C >= #$DC00) and (C <= #$DFFF);
+end;
+
+function IsNoFollowChar(C: WideChar): Boolean; inline;
+begin
+  Result := (C < #$DC00) or (C > #$DFFF);
 end;
 
 function REOptionsToRECompareOptions(AREOptions: TREOptions): TRECompareOptions;
@@ -3346,7 +3356,7 @@ begin
   for I := 1 to Len do
   begin
     Dec(P);
-    if IsLeadChar(P^) then
+    if IsFollowChar(P^) then
       Dec(P);
   end;
 end;
@@ -3360,7 +3370,7 @@ begin
     if StartP = P then
       Exit;
     Dec(P);
-    if IsLeadChar(P^) then
+    if IsFollowChar(P^) then
       Dec(P);
   end;
 end;
@@ -6787,6 +6797,7 @@ end;
 function TREBoundaryCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 var
   PrevType, CurType: Boolean;
+  L: Integer;
 begin
   Len := 0;
 
@@ -6797,6 +6808,13 @@ begin
     else
     begin
       Dec(AStr);
+      if IsFollowChar(AStr^) then
+      begin
+        Dec(AStr);
+        L := 2;
+      end
+      else
+        L := 1;
 
       if FIsASCII then
       begin
@@ -6809,7 +6827,7 @@ begin
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
 
-      Inc(AStr);
+      Inc(AStr, L);
     end;
 
     if AStr = FRegExp.FMatchEndP then
@@ -6835,6 +6853,13 @@ begin
     if AStr <> FRegExp.FMatchTopP then
     begin
       Dec(AStr);
+      if IsFollowChar(AStr^) then
+      begin
+        Dec(AStr);
+        L := 2;
+      end
+      else
+        L := 1;
 
       if FIsASCII then
       begin
@@ -6847,7 +6872,7 @@ begin
 {$ENDIF USE_UNICODE_PROPERTY}
       end;
 
-      Inc(AStr);
+      Inc(AStr, L);
     end
     else
       PrevType := True;
@@ -17118,16 +17143,25 @@ begin
         Result := Result + '\e';
     else
       begin
-{$IFDEF USE_UNICODE_PROPERTY}
-        if not IsPrintU(ToUChar(Str, I)) then
-{$ELSE USE_UNICODE_PROPERTY}
-        if not IsPrintA(ToUChar(Str, I)) then
-{$ENDIF USE_UNICODE_PROPERTY}
+        if IsLeadChar(Str[I]) then
         begin
-          Result := Result + Format('\x{%.2x}', [Ord(Str[I])])
+          Result := Result + Str[I];
+          Inc(I);
+          Result := Result + Str[I];
         end
         else
-          Result := Result + Str[I];
+        begin
+{$IFDEF USE_UNICODE_PROPERTY}
+          if not IsPrintU(ToUChar(Str, I)) then
+{$ELSE USE_UNICODE_PROPERTY}
+          if not IsPrintA(ToUChar(Str, I)) then
+{$ENDIF USE_UNICODE_PROPERTY}
+          begin
+            Result := Result + Format('\x{%.2x}', [Ord(Str[I])])
+          end
+          else
+            Result := Result + Str[I];
+        end;
       end;
     end;
     Inc(I);
