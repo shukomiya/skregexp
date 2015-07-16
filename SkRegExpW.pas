@@ -6120,7 +6120,9 @@ begin
       Result := AStr;
       Exit;
     end;
-    Inc(AStr, L);
+    if IsLeadChar(AStr^) then
+      Inc(AStr);
+    Inc(AStr);
   end;
   Result := nil;
 end;
