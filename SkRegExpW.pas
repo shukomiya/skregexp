@@ -547,7 +547,7 @@ type
     function GetSimpleClass: Boolean;
   protected
     Match: TList;
-    procedure InitCharMap(IsNegative: Boolean);
+    procedure InitCharMap;
     procedure InternalAdd(Ch: UChar);
   public
     constructor Create(ARegExp: TSkRegExp; ANegative: Boolean;
@@ -1791,7 +1791,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.2';
+  CONST_VERSION = '3.1.4';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -5943,7 +5943,7 @@ begin
   FNegative := False;
   FIgnoreCase := False;
   FOptions := [];
-  InitCharMap(False);
+  InitCharMap;
 end;
 
 function TRECharClassCode.IndexOfCharSet(ACode: TRECharSetCode): Integer;
@@ -6023,26 +6023,19 @@ begin
   Result := -1;
 end;
 
-procedure TRECharClassCode.InitCharMap(IsNegative: Boolean);
+procedure TRECharClassCode.InitCharMap;
 var
   I: Integer;
 begin
-  if IsNegative then
-    for I := Low(FASCIIMap) to High(FASCIIMap) do
-      FASCIIMap[I] := $FF
-  else
-    for I := Low(FASCIIMap) to High(FASCIIMap) do
-      FASCIIMap[I] := 0;
+  for I := Low(FASCIIMap) to High(FASCIIMap) do
+    FASCIIMap[I] := 0;
 end;
 
 procedure TRECharClassCode.InternalAdd(Ch: UChar);
 begin
   if Ch < 128 then
   begin
-    if FNegative then
-      FASCIIMap[Byte(Ch) div 8] := FASCIIMap[Byte(Ch) div 8] xor (1 shl (Byte(Ch) and 7))
-    else
-      FASCIIMap[Byte(Ch) div 8] := FASCIIMap[Byte(Ch) div 8] or (1 shl (Byte(Ch) and 7));
+    FASCIIMap[Byte(Ch) div 8] := FASCIIMap[Byte(Ch) div 8] or (1 shl (Byte(Ch) and 7));
 
     if not FHasMap then
       FHasMap := True;
@@ -6070,7 +6063,7 @@ begin
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
-  InitCharMap(ANegative);
+  InitCharMap;
 end;
 
 destructor TRECharClassCode.Destroy;
@@ -6217,10 +6210,11 @@ begin
 
     if Ch < 128 then
     begin
-      Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
-
-      if not Result then
+      if  (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) = 0 then
+      begin
+        Result := False;
         Exit;
+      end;
 
       for I := 0 to FCharSetList.Count - 1 do
       begin
@@ -6402,6 +6396,9 @@ begin
   begin
     Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
 
+    if FNegative then
+      Result := not Result;
+
     if Result then
       Len := 1;
   end
@@ -6444,6 +6441,9 @@ begin
 
     Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
 
+    if FNegative then
+      Result := not Result;
+
     if Result then
       Len := 1;
   end
@@ -6476,6 +6476,10 @@ begin
   if FHasMap and (AStr^ < #128) then
   begin
     Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
+
+    if FNegative then
+      Result := not Result;
+
     if Result then
       Len := 1;
   end
@@ -6545,10 +6549,10 @@ begin
   else
   begin
     Result := FCharRange.IsMatch(Ch);
-
-    if FNegative then
-      Result := not Result;
   end;
+
+  if FNegative then
+    Result := not Result;
 end;
 
 { TRECharClassSimpleCharSetCode }
@@ -6689,7 +6693,7 @@ begin
     if AStr^ < #128 then
     begin
       Len := 1;
-      if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) = 0 then
+      if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
       begin
         Result := False;
         Exit;
