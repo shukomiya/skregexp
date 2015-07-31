@@ -1791,7 +1791,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.4';
+  CONST_VERSION = '3.1.5';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -6210,7 +6210,7 @@ begin
 
     if Ch < 128 then
     begin
-      if  (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) = 0 then
+      if  (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0 then
       begin
         Result := False;
         Exit;
