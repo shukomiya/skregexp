@@ -1791,7 +1791,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.5';
+  CONST_VERSION = '3.1.6';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -3248,7 +3248,7 @@ begin
 
   if (coIgnoreWidth in AOptions) or (coIgnoreKana in AOptions) then
   begin
-    while AStr <= TextEndP do
+    while AStr < TextEndP do
     begin
       if REStrLJComp(AStr, APattern, APatternLen, MatchLen, AOptions) = 0 then
       begin
@@ -3262,7 +3262,7 @@ begin
   begin
     if coASCIIOnly in AOptions then
     begin
-      while AStr <= TextEndP do
+      while AStr < TextEndP do
       begin
         if REStrLIAComp(AStr, APattern, APatternLen) = 0 then
         begin
@@ -3275,7 +3275,7 @@ begin
     end
     else
     begin
-      while AStr <= TextEndP do
+      while AStr < TextEndP do
       begin
         if REStrLIComp(AStr, APattern, APatternLen, MatchLen) = 0 then
         begin
@@ -3288,7 +3288,7 @@ begin
   end
   else
   begin
-    while AStr <= TextEndP do
+    while AStr < TextEndP do
     begin
       if REStrLComp(AStr, APattern, APatternLen) = 0 then
       begin
@@ -3468,7 +3468,7 @@ begin
       ClearUnicodeMultiChar(LFold);
 
       WChar := ToUChar(FPattern);
-      while AStr <= FTextEndP do
+      while AStr < FTextEndP do
       begin
         if WChar = GetREChar(AStr, L, AOptions, LFold) then
         begin
@@ -3485,7 +3485,7 @@ begin
       begin
         C1 := ToUChar(FPattern);
 
-        while AStr <= FTextEndP do
+        while AStr < FTextEndP do
         begin
           P := AStr;
 
@@ -3526,7 +3526,7 @@ begin
       begin
         C1 := ToUChar(FPattern);
 
-        while AStr <= FTextEndP do
+        while AStr < FTextEndP do
         begin
           P := AStr;
 
@@ -3575,7 +3575,7 @@ begin
     else
     begin
       P := PWideChar(FPattern);
-      while AStr <= FTextEndP do
+      while AStr < FTextEndP do
       begin
         if AStr^ = P^ then
         begin
