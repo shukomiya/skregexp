@@ -511,11 +511,18 @@ type
 
   TRECharRange = class
   private
+{$IFDEF SKREGEXP_DEBUG}
+    FRegExp: TSkRegExp;
+{$ENDIF SKREGEXP_DEBUG}
     FList: TList;
     FCurIndex: Integer;
     function Get(Index: Integer): PRECharRangeRec;
   public
+{$IFDEF SKREGEXP_DEBUG}
+    constructor Create(ARegExp: TSkRegExp);
+{$ELSE SKREGEXP_DEBUG}
     constructor Create;
+{$ENDIF SKREGEXP_DEBUG}
     destructor Destroy; override;
     procedure Assign(Source: TRECharRange);
     function Add(AStartWChar, ALastWChar: UChar): Integer;
@@ -527,31 +534,6 @@ type
     function GetDebugStr: REString;
 {$ENDIF}
     property Items[Index: Integer]: PRECharRangeRec read Get; default;
-  end;
-
-  TRECharList = class
-  private
-{$IFDEF SKREGEXP_DEBUG}
-    FRegExp: TSkRegExp;
-{$ENDIF SKREGEXP_DEBUG}
-    FCharArray: UCharArray;
-    FCount: Integer;
-  protected
-    procedure InternalInsert(Index: Integer; AWChar: UChar);
-  public
-{$IFDEF SKREGEXP_DEBUG}
-    constructor Create(ARegExp: TSkRegExp);
-{$ENDIF SKREGEXP_DEBUG}
-    destructor Destroy; override;
-    procedure Assign(Source: TRECharList);
-    function Add(AWChar: UChar): Integer;
-    function Compare(Ch: UChar; out Index: Integer): Integer;
-    procedure Clear;
-    function Count: Integer; inline;
-    function IsMatch(Ch: UChar): Boolean;
-{$IFDEF SKREGEXP_DEBUG}
-    function GetDebugStr: REString;
-{$ENDIF}
   end;
 
   TREASCIICharMapArray = array[0..15] of Byte;
@@ -568,8 +550,6 @@ type
     FHasUnicode: Boolean;
     FCharSetList: TObjectList;
     FCharRange: TRECharRange;
-    FCharList: TRECharList;
-    FHasList: Boolean;
     FHasRange: Boolean;
     function GetSimpleClass: Boolean;
   protected
@@ -2160,7 +2140,7 @@ begin
 
   while I <= L do
   begin
-    if S[I] < #$80 then
+    if S[I] < #$0080 then
     begin
       case S[I] of
         'A'..'Z':
@@ -3082,7 +3062,7 @@ begin
   begin
     if FD1[0] = 0 then
     begin
-      if P1^ < #$80 then
+      if P1^ < #$0080 then
       begin
         case P1^ of
           'A'..'Z':
@@ -3123,7 +3103,7 @@ begin
 
     if FD2[0] = 0 then
     begin
-      if P2^ < #$80 then
+      if P2^ < #$0080 then
       begin
         case P2^ of
           'A'..'Z':
@@ -3516,7 +3496,7 @@ begin
         begin
           P := AStr;
 
-          if AStr^ < #$80 then
+          if AStr^ < #$0080 then
           begin
             case AStr^ of
               'A'..'Z':
@@ -3557,7 +3537,7 @@ begin
         begin
           P := AStr;
 
-          if AStr^ < #$80 then
+          if AStr^ < #$0080 then
           begin
             case AStr^ of
               'A'..'Z':
@@ -4960,7 +4940,7 @@ begin
 
   if not FNegative then
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := IsWordA(UChar(AStr^));
       if Result then
@@ -4976,7 +4956,7 @@ begin
   end
   else
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := not IsWordA(UChar(AStr^));
       if Result then
@@ -5028,7 +5008,7 @@ begin
     begin
       if FIsASCII then
       begin
-        Result := ((ACode as TRELiteralCode).FSubP^ < #128) and
+        Result := ((ACode as TRELiteralCode).FSubP^ < #$0080) and
           IsWordA(UChar((ACode as TRELiteralCode).FSubP^))
 {$IFDEF USE_UNICODE_PROPERTY}
       end
@@ -5058,7 +5038,7 @@ begin
 
   if not FNegative then
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := IsDigitA(UChar(AStr^));
       if Result then
@@ -5074,7 +5054,7 @@ begin
   end
   else
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := not IsDigitA(UChar(AStr^));
       if Result then
@@ -5126,7 +5106,7 @@ begin
     begin
       if FIsASCII then
       begin
-        Result := ((ACode as TRELiteralCode).FSubP^ < #128) and
+        Result := ((ACode as TRELiteralCode).FSubP^ < #$0080) and
           IsDigitA(UChar(((ACode as TRELiteralCode).FSubP^)));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
@@ -5176,7 +5156,7 @@ begin
 
   if not FNegative then
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := IsSpacePerlA(UChar(AStr^));
       if Result then
@@ -5192,7 +5172,7 @@ begin
   end
   else
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Result := not IsSpacePerlA(UChar(AStr^));
       if Result then
@@ -5244,7 +5224,7 @@ begin
     begin
       if FIsASCII then
       begin
-        Result := ((ACode as TRELiteralCode).FSubP^ < #128) and
+        Result := ((ACode as TRELiteralCode).FSubP^ < #$0080) and
           IsSpacePerlA(UChar(((ACode as TRELiteralCode).FSubP^)));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
@@ -5587,6 +5567,11 @@ begin
   begin
     AMid := (ALeft + ARight) shr 1;
     P := FList[AMid];
+    FRegExp.FMatchProcess.Add(
+      Format(#0009'Ch=$%x(%s) : FCharRange[%d]={$%x(%s), $%x(%s)}',
+        [Ch, UCharToString(Ch), AMid,
+          P.StartWChar, UCharToString(P.StartWChar),
+          P.LastWChar, UCharToString(P.LastWChar)]));
     if (Ch >= P.StartWChar) and (Ch <= P.LastWChar) then
     begin
       Result := True;
@@ -5637,12 +5622,24 @@ begin
   Result := FList.Count;
 end;
 
+{$IFDEF SKREGEXP_DEBUG}
+constructor TRECharRange.Create(ARegExp: TSkRegExp);
+begin
+  inherited Create;
+  FRegExp := ARegExp;
+  FList := TList.Create;
+  FCurIndex := -1;
+end;
+
+{$ELSE SKREGEXP_DEBUG}
+
 constructor TRECharRange.Create;
 begin
   inherited;
   FList := TList.Create;
   FCurIndex := -1;
 end;
+{$ENDIF SKREGEXP_DEBUG}
 
 destructor TRECharRange.Destroy;
 begin
@@ -5666,13 +5663,11 @@ begin
   FHasMap := ACharClass.FHasMap;
   FHasUnicode := ACharClass.FHasUnicode;
   FHasRange := ACharClass.FHasRange;
-  FHasList := ACharClass.FHasList;
 
   for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
     FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
 
   FCharRange.Assign(ACharClass.FCharRange);
-  FCharList.Assign(ACharClass.FCharList);
 end;
 
 procedure TRECharClassCode.Assign(Source: TRECharClassCode);
@@ -5692,7 +5687,6 @@ begin
   FASCIIOnly := Source.FASCIIOnly;
   FHasMap := Source.FHasMap;
   FHasRange := Source.FHasRange;
-  FHasList := Source.FHasList;
   FHasUnicode := Source.FHasUnicode;
 
   if FHasMap then
@@ -5701,9 +5695,6 @@ begin
 
   if Source.FHasRange then
     FCharRange.Assign(Source.FCharRange);
-
-  if Source.FHasList then
-    FCharList.Assign(Source.FCharList);
 
   if Source.FCharSetCount > 0 then
   begin
@@ -5981,8 +5972,6 @@ begin
   FHasUnicode := False;
   FCharSetList.Clear;
   FCharRange.Clear;
-  FCharList.Clear;
-  FHasList := False;
   FHasRange := False;
   FNegative := False;
   FIgnoreCase := False;
@@ -6089,10 +6078,10 @@ begin
     if not FHasUnicode then
       FHasUnicode := True;
 
-    FCharList.Add(Ch);
+    FCharRange.Add(Ch, Ch);
 
-    if not FHasList then
-      FHasList := True;
+    if not FHasRange then
+      FHasRange := True;
   end;
 
   Inc(FCharCount);
@@ -6103,11 +6092,10 @@ constructor TRECharClassCode.Create(ARegExp: TSkRegExp; ANegative: Boolean;
 begin
   inherited Create(ARegExp, AOptions);
   FCharSetList := TObjectList.Create;
-  FCharRange := TRECharRange.Create;
 {$IFDEF SKREGEXP_DEBUG}
-  FCharList := TRECharList.Create(ARegExp);
+  FCharRange := TRECharRange.Create(FRegExp);
 {$ELSE SKREGEXP_DEBUG}
-  FCharList := TRECharList.Create;
+  FCharRange := TRECharRange.Create;
 {$ENDIF SKREGEXP_DEBUG}
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
@@ -6117,7 +6105,6 @@ end;
 
 destructor TRECharClassCode.Destroy;
 begin
-  FCharList.Free;
   FCharRange.Free;
   FCharSetList.Free;
   inherited;
@@ -6184,7 +6171,7 @@ begin
 
   if FIgnoreCase then
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Len := 1;
       case AStr^ of
@@ -6209,7 +6196,7 @@ begin
   end
   else
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Len := 1;
       Ch := UChar(AStr^);
@@ -6237,12 +6224,6 @@ begin
   end
   else
   begin
-    if FHasList and FCharList.IsMatch(Ch) then
-    begin
-      Result := not Result;
-      Exit;
-    end;
-
     if FHasRange and FCharRange.IsMatch(Ch) then
     begin
       Result := not Result;
@@ -6344,8 +6325,6 @@ function TRECharClassCode.GetDebugStr: REString;
       if IsStart then
         Result := Result + BuidStr(Start, Last, Prev) + ' ';
 
-      if FCharList.Count > 0 then
-        Result := Result + FCharList.GetDebugStr;
       if FCharRange.Count > 0 then
         Result := Result + FCharRange.GetDebugStr;
 
@@ -6406,7 +6385,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if AStr^ < #128 then
+  if AStr^ < #$0080 then
   begin
     Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
 
@@ -6444,7 +6423,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if AStr^ < #128 then
+  if AStr^ < #$0080 then
   begin
     case AStr^ of
       'A'..'Z':
@@ -6489,7 +6468,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if FHasMap and (AStr^ < #128) then
+  if FHasMap and (AStr^ < #$0080) then
   begin
     Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
 
@@ -6502,8 +6481,7 @@ begin
   else
   begin
     Ch:= ToUChar(AStr, Len);
-    Result := (FHasList and FCharList.IsMatch(Ch)) or
-      (FHasRange and FCharRange.IsMatch(Ch));
+    Result := FHasRange and FCharRange.IsMatch(Ch);
 
     if FNegative then
       Result := not Result;
@@ -6526,7 +6504,7 @@ begin
 
   if FIgnoreCase then
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Len := 1;
       case AStr^ of
@@ -6551,7 +6529,7 @@ begin
   end
   else
   begin
-    if AStr^ < #128 then
+    if AStr^ < #$0080 then
     begin
       Len := 1;
       Ch := UChar(AStr^);
@@ -6566,8 +6544,7 @@ begin
   end
   else
   begin
-    Result := (FHasList and FCharList.IsMatch(Ch)) or
-      (FHasRange and FCharRange.IsMatch(Ch));
+    Result := FHasRange and FCharRange.IsMatch(Ch);
   end;
 
   if FNegative then
@@ -6615,7 +6592,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if AStr^ < #128 then
+  if AStr^ < #$0080 then
   begin
     Len := 1;
     case AStr^ of
@@ -6668,10 +6645,13 @@ begin
     Exit;
   end;
 
-  if AStr^ < #128 then
+  FRegExp.FMatchProcess.Add(
+    Format(#0009'CCLASS HEAD AStr^=$%x(%s) [Pos=%d]',
+    [ToUChar(AStr), UCharToString(ToUChar(AStr)), AStr - FRegExp.FTextTopP + 1]));
+
+  if AStr^ < #$0080 then
   begin
     Len := 1;
-
     if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
     begin
       Result := not Result;
@@ -6683,7 +6663,7 @@ begin
       if (FCharSetList[I] as TRECharSetCode).IsMatch(UChar(AStr^)) then
       begin
         Result := not Result;
-        Break;
+        Exit;
       end;
     end;
   end
@@ -6691,8 +6671,11 @@ begin
   begin
     Ch := ToUChar(AStr, Len);
 
-    if (FHasList and FCharList.IsMatch(Ch)) or
-        (FHasRange and FCharRange.IsMatch(Ch)) then
+    FRegExp.FMatchProcess.Add(
+      Format(#0009'CCLASS IN UNICODE Ch=$%x(%s), Len=%d,  [Pos=%d]',
+      [Ch, UCharToString(Ch), Len, AStr - FRegExp.FTextTopP + 1]));
+
+    if FHasRange and FCharRange.IsMatch(Ch) then
     begin
       Result := not Result;
       Exit;
@@ -6703,7 +6686,7 @@ begin
       if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
       begin
         Result := not Result;
-        Break;
+        Exit;
       end;
     end;
   end;
@@ -6800,7 +6783,7 @@ begin
 
       if FIsASCII then
       begin
-        PrevType := (AStr^ < #128) and IsWordA(UChar(AStr^));
+        PrevType := (AStr^ < #$0080) and IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
@@ -6818,7 +6801,7 @@ begin
     begin
       if FIsASCII then
       begin
-        CurType := (AStr^ < #128) and IsWordA(UChar(AStr^));
+        CurType := (AStr^ < #$0080) and IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
@@ -6845,7 +6828,7 @@ begin
 
       if FIsASCII then
       begin
-        PrevType := (AStr^ >= #128) or not IsWordA(UChar(AStr^));
+        PrevType := (AStr^ >= #$0080) or not IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
@@ -6863,7 +6846,7 @@ begin
     begin
       if FIsASCII then
       begin
-        CurType := (AStr^ >= #128) or not IsWordA(UChar(AStr^));
+        CurType := (AStr^ >= #$0080) or not IsWordA(UChar(AStr^));
 {$IFDEF USE_UNICODE_PROPERTY}
       end
       else
@@ -7328,7 +7311,7 @@ begin
   if FRegExp.FMatchEndP = AStr then
     Exit;
 
-  if AStr^ < #128 then
+  if AStr^ < #$0080 then
   begin
     Result :=
       IsPosixClassA(UChar(AStr^), FPosixClass, roIgnoreCase in FOptions);
@@ -8442,7 +8425,7 @@ begin
 
   L := 0;
 
-  if not ((FP^ < #128) and IsDigitA(UChar(FP^))) then
+  if not ((FP^ < #$0080) and IsDigitA(UChar(FP^))) then
     FMin := 0
   else
   begin
@@ -8802,7 +8785,7 @@ begin
     else
       FToken := tkGoSub;
 
-    if (FP^ < #128) and IsDigitA(UChar(FP^)) then
+    if (FP^ < #$0080) and IsDigitA(UChar(FP^)) then
     begin
       ATag := GetDigit(L);
 
@@ -8892,7 +8875,7 @@ begin
       '-', '^':
         begin
           CharNext(FP);
-          if not ((FP^ < #128) and IsDigitA(UChar(FP^))) then
+          if not ((FP^ < #$0080) and IsDigitA(UChar(FP^))) then
           begin
             CharPrev(FP);
             LexOption;
@@ -8981,7 +8964,7 @@ begin
       '+':
         begin
           CharNext(FP);
-          if (FP^ < #128) and IsDigitA(UChar(FP^)) then
+          if (FP^ < #$0080) and IsDigitA(UChar(FP^)) then
           begin
             FMin := GetDigit(L);
             CharNext(FP, L);
@@ -9008,7 +8991,7 @@ begin
       '(':
         begin
           CharNext(FP);
-          if (FP^ < #128) and IsDigitA(UChar(FP^)) then
+          if (FP^ < #$0080) and IsDigitA(UChar(FP^)) then
           begin
             FMin := GetDigit(L);
             CharNext(FP, L);
@@ -9051,7 +9034,7 @@ begin
               FToken := tkInSubRef;
               Exit;
             end
-            else if (FP^ < #128) and IsDigitA(UChar(FP^)) then
+            else if (FP^ < #$0080) and IsDigitA(UChar(FP^)) then
             begin
               FMin := GetDigit(L);
               CharNext(FP, L);
@@ -9435,7 +9418,7 @@ begin
 //      CharNext(FP);
 //      StartP := FP;
 //    end
-    else if ((FP^ < #128) and IsWordA(UChar(FP^))) or (FP^ = '&') then
+    else if ((FP^ < #$0080) and IsWordA(UChar(FP^))) or (FP^ = '&') then
       CharNext(FP)
     else
       Error(sInvalidProperty);
@@ -9485,7 +9468,7 @@ begin
     else
       FToken := tkReference;
 
-    if (FP^ < #128) and IsDigitA(UChar(FP^)) then
+    if (FP^ < #$0080) and IsDigitA(UChar(FP^)) then
     begin
       FMin := GetDigit(L);
 
@@ -17436,157 +17419,6 @@ begin
     Result := R.Replace(AInputStr, AReplaceFunc)
   finally
     R.Free;
-  end;
-end;
-
-
-{ TRECharList }
-
-function TRECharList.Add(AWChar: UChar): Integer;
-var
-  Item: PRECharRangeRec;
-  LComp, Index: Integer;
-begin
-  Result := -1;
-
-  LComp := Compare(AWChar, Index);
-  if LComp < 0 then
-  begin
-    Inc(FCount);
-    SetLength(FCharArray, FCount);
-
-    if Index = -1 then
-    begin
-      FCharArray[FCount - 1] := AWChar;
-      Result := FCount - 1;
-    end
-    else
-    begin
-      InternalInsert(Index, AWChar);
-      Result := Index;
-    end;
-  end
-  else if LComp > 0 then
-  begin
-    Inc(FCount);
-    SetLength(FCharArray, FCount);
-    FCharArray[FCount - 1] := AWChar;
-    Result := FCount - 1;
-  end;
-end;
-
-procedure TRECharList.Assign(Source: TRECharList);
-var
-  I: Integer;
-begin
-  FCount := Source.FCount;
-  SetLength(FCharArray, FCount);
-
-  for I := 0 to Source.FCount - 1 do
-    FCharArray[I] := Source.FCharArray[I];
-
-end;
-
-procedure TRECharList.Clear;
-begin
-  FCount := 0;
-  SetLength(FCharArray, 0);
-end;
-
-function TRECharList.Compare(Ch: UChar; out Index: Integer): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  Index := -1;
-
-  if FCount = 0 then
-    Exit;
-
-  I := 0;
-
-  Index := -1;
-  while I < FCount do
-  begin
-    if Ch < FCharArray[I] then
-    begin
-      Result := -1;
-      Index := I;
-      Exit;
-    end
-    else if Ch > FCharArray[I] then
-      Inc(I)
-    else
-    begin
-      Result := 0;
-      Index := I;
-      Exit;
-    end;
-  end;
-  Result := 1;
-  Index := I;
-end;
-
-function TRECharList.Count: Integer;
-begin
-  Result := FCount;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-constructor TRECharList.Create(ARegExp: TSkRegExp);
-begin
-  inherited Create;
-  FRegExp := ARegExp;
-end;
-{$ENDIF SKREGEXP_DEBUG}
-
-destructor TRECharList.Destroy;
-begin
-  SetLength(FCharArray, 0);
-  inherited;
-end;
-
-function TRECharList.GetDebugStr: REString;
-var
-  I: Integer;
-begin
-  Result := '';
-  for I := 0 to FCount - 1 do
-    Result := Result + UCharToString(FCharArray[I])
-end;
-
-procedure TRECharList.InternalInsert(Index: Integer; AWChar: UChar);
-var
-  I: Integer;
-begin
-  for I := FCount - 1 downto Index do
-    FCharArray[I] := FCharArray[I - 1];
-  FCharArray[Index] := AWChar;
-end;
-
-function TRECharList.IsMatch(Ch: UChar): Boolean;
-var
-  ALeft, ARight, AMid: Integer;
-  P: PRECharRangeRec;
-begin
-  Result := False;
-  ALeft := 0;
-  ARight := FCount - 1;
-
-  while (ALeft <= ARight) do
-  begin
-    AMid := (ALeft + ARight) shr 1;
-    FRegExp.FMatchProcess.Add(
-      Format(#0009'Ch=%d FCharArray[%d]=%d',[Ch, AMid, Ch]));
-    if Ch = FCharArray[AMid] then
-    begin
-      Result := True;
-      Exit;
-    end;
-    if FCharArray[AMid] > Ch then
-      ARight := AMid - 1
-    else
-      ALeft := AMid + 1;
   end;
 end;
 
