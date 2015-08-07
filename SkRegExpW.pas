@@ -52,7 +52,7 @@ uses
   Classes,
   Contnrs,
 {$IFDEF SKREGEXP_DEBUG}
-  Comctrls,
+//  Comctrls,
   StrUtils,
 {$ENDIF SKREGEXP_DEBUG}
 {$IFNDEF UNICODE}
@@ -529,6 +529,26 @@ type
     property Items[Index: Integer]: PRECharRangeRec read Get; default;
   end;
 
+  TRECharList = class
+  private
+    FCharArray: UCharArray;
+    FCount: Integer;
+  protected
+    procedure InternalInsert(Index: Integer; AWChar: UChar);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Assign(Source: TRECharList);
+    function Add(AWChar: UChar): Integer;
+    function Compare(Ch: UChar; out Index: Integer): Integer;
+    procedure Clear;
+    function Count: Integer; inline;
+    function IsMatch(Ch: UChar): Boolean;
+{$IFDEF SKREGEXP_DEBUG}
+    function GetDebugStr: REString;
+{$ENDIF}
+  end;
+
   TREASCIICharMapArray = array[0..15] of Byte;
 
   TRECharClassCode = class(TRECode)
@@ -543,6 +563,8 @@ type
     FHasUnicode: Boolean;
     FCharSetList: TObjectList;
     FCharRange: TRECharRange;
+    FCharList: TRECharList;
+    FHasList: Boolean;
     FHasRange: Boolean;
     function GetSimpleClass: Boolean;
   protected
@@ -1673,7 +1695,7 @@ type
     class function EscapeRegExChars(const S: REString): REString;
 
 {$IFDEF SKREGEXP_DEBUG}
-    procedure DumpParse(TreeView: TTreeView);
+//    procedure DumpParse(TreeView: TTreeView);
     procedure DumpNFA(ADest: TStrings);
     function DumpLeadCode: REString;
     function DumpMatchProcess: REString;
@@ -1791,7 +1813,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.6';
+  CONST_VERSION = '3.1.6A';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -5639,11 +5661,13 @@ begin
   FHasMap := ACharClass.FHasMap;
   FHasUnicode := ACharClass.FHasUnicode;
   FHasRange := ACharClass.FHasRange;
+  FHasList := ACharClass.FHasList;
 
   for I := Low(ACharClass.FASCIIMap) to High(ACharClass.FASCIIMap) do
     FASCIIMap[I] := FASCIIMap[I] or ACharClass.FASCIIMap[I];
 
   FCharRange.Assign(ACharClass.FCharRange);
+  FCharList.Assign(ACharClass.FCharList);
 end;
 
 procedure TRECharClassCode.Assign(Source: TRECharClassCode);
@@ -5662,6 +5686,8 @@ begin
   FIgnoreCase := Source.FIgnoreCase;
   FASCIIOnly := Source.FASCIIOnly;
   FHasMap := Source.FHasMap;
+  FHasRange := Source.FHasRange;
+  FHasList := Source.FHasList;
   FHasUnicode := Source.FHasUnicode;
 
   if FHasMap then
@@ -5670,6 +5696,9 @@ begin
 
   if Source.FHasRange then
     FCharRange.Assign(Source.FCharRange);
+
+  if Source.FHasList then
+    FCharList.Assign(Source.FCharList);
 
   if Source.FCharSetCount > 0 then
   begin
@@ -5939,7 +5968,17 @@ end;
 
 procedure TRECharClassCode.Clear;
 begin
+  FWChar := 0;
+  FCharCount := 0;
+  FCharSetCount := 0;
+  FASCIIOnly := False;
+  FHasMap := False;
+  FHasUnicode := False;
+  FCharSetList.Clear;
   FCharRange.Clear;
+  FCharList.Clear;
+  FHasList := False;
+  FHasRange := False;
   FNegative := False;
   FIgnoreCase := False;
   FOptions := [];
@@ -6045,10 +6084,10 @@ begin
     if not FHasUnicode then
       FHasUnicode := True;
 
-    FCharRange.Add(Ch, Ch);
+    FCharList.Add(Ch);
 
-    if not FHasRange then
-      FHasRange := True;
+    if not FHasList then
+      FHasList := True;
   end;
 
   Inc(FCharCount);
@@ -6060,6 +6099,7 @@ begin
   inherited Create(ARegExp, AOptions);
   FCharSetList := TObjectList.Create;
   FCharRange := TRECharRange.Create;
+  FCharList := TRECharList.Create;
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
@@ -6068,6 +6108,7 @@ end;
 
 destructor TRECharClassCode.Destroy;
 begin
+  FCharList.Free;
   FCharRange.Free;
   FCharSetList.Free;
   inherited;
@@ -6126,7 +6167,7 @@ var
   FD: TUnicodeMultiChar;
   I: Integer;
 begin
-  Result := False;
+  Result := FNegative;
   Len := 0;
 
   if FRegExp.FMatchEndP = AStr then
@@ -6168,81 +6209,43 @@ begin
       Ch := ToUChar(AStr, Len);
   end;
 
-  if not FNegative then
+  if Ch < 128 then
   begin
-    if Ch < 128 then
+    if (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0 then
     begin
-      Result := (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0;
+      Result := not Result;
+      Exit;
+    end;
 
-      if Result then
-        Exit;
-
-      for I := 0 to FCharSetList.Count - 1 do
-      begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := True;
-          Break;
-        end;
-      end;
-    end
-    else
+    for I := 0 to FCharSetList.Count - 1 do
     begin
-      if FCharRange.Count > 0 then
-        Result := FCharRange.IsMatch(Ch);
-
-      if Result then
-        Exit;
-
-      for I := 0 to FCharSetList.Count - 1 do
+      if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
       begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := True;
-          Break;
-        end;
+        Result := not Result;
+        Break;
       end;
     end;
   end
   else
   begin
-    Result := True;
-
-    if Ch < 128 then
+    if FHasList and FCharList.IsMatch(Ch) then
     begin
-      if  (FASCIIMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7))) <> 0 then
-      begin
-        Result := False;
-        Exit;
-      end;
+      Result := not Result;
+      Exit;
+    end;
 
-      for I := 0 to FCharSetList.Count - 1 do
-      begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := False;
-          Break;
-        end;
-      end;
-    end
-    else
+    if FHasRange and FCharRange.IsMatch(Ch) then
     begin
-      if FCharRange.Count > 0 then
-      begin
-        if FCharRange.IsMatch(Ch) then
-        begin
-          Result := False;
-          Exit;
-        end;
-      end;
+      Result := not Result;
+      Exit;
+    end;
 
-      for I := 0 to FCharSetList.Count - 1 do
+    for I := 0 to FCharSetList.Count - 1 do
+    begin
+      if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
       begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := False;
-          Break;
-        end;
+        Result := not Result;
+        Break;
       end;
     end;
   end;
@@ -6332,6 +6335,8 @@ function TRECharClassCode.GetDebugStr: REString;
       if IsStart then
         Result := Result + BuidStr(Start, Last, Prev) + ' ';
 
+      if FCharList.Count > 0 then
+        Result := Result + FCharList.GetDebugStr;
       if FCharRange.Count > 0 then
         Result := Result + FCharRange.GetDebugStr;
 
@@ -6466,6 +6471,8 @@ end;
 
 function TRECharClassMapUCode.IsEqual(AStr: PWideChar;
   var Len: Integer): Boolean;
+var
+  Ch: UChar;
 begin
   Result := False;
   Len := 0;
@@ -6485,7 +6492,9 @@ begin
   end
   else
   begin
-    Result := FCharRange.IsMatch(ToUChar(AStr, Len));
+    Ch:= ToUChar(AStr, Len);
+    Result := (FHasList and FCharList.IsMatch(Ch)) or
+      (FHasRange and FCharRange.IsMatch(Ch));
 
     if FNegative then
       Result := not Result;
@@ -6548,7 +6557,8 @@ begin
   end
   else
   begin
-    Result := FCharRange.IsMatch(Ch);
+    Result := (FHasList and FCharList.IsMatch(Ch)) or
+      (FHasRange and FCharRange.IsMatch(Ch));
   end;
 
   if FNegative then
@@ -6640,94 +6650,51 @@ var
   Ch: UChar;
   I: Integer;
 begin
-  Result := False;
+  Result := FNegative;
   Len := 0;
 
   if FRegExp.FMatchEndP = AStr then
-    Exit;
-
-  if not FNegative then
   begin
-    if AStr^ < #128 then
+    Result := False;
+    Exit;
+  end;
+
+  if AStr^ < #128 then
+  begin
+    Len := 1;
+
+    if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
     begin
-      Result := (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0;
+      Result := not Result;
+      Exit;
+    end;
 
-      Len := 1;
-
-      if Result then
-        Exit;
-
-      for I := 0 to FCharSetList.Count - 1 do
-      begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(UChar(AStr^)) then
-        begin
-          Result := True;
-          Break;
-        end;
-      end;
-    end
-    else
+    for I := 0 to FCharSetList.Count - 1 do
     begin
-      Ch := ToUChar(AStr, Len);
-
-      if FCharRange.Count > 0 then
-        Result := FCharRange.IsMatch(Ch);
-
-      if Result then
-        Exit;
-
-      for I := 0 to FCharSetList.Count - 1 do
+      if (FCharSetList[I] as TRECharSetCode).IsMatch(UChar(AStr^)) then
       begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := True;
-          Break;
-        end;
+        Result := not Result;
+        Break;
       end;
     end;
   end
   else
   begin
-    Result := True;
+    Ch := ToUChar(AStr, Len);
 
-    if AStr^ < #128 then
+    if (FHasList and FCharList.IsMatch(Ch)) or
+        (FHasRange and FCharRange.IsMatch(Ch)) then
     begin
-      Len := 1;
-      if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
-      begin
-        Result := False;
-        Exit;
-      end;
+      Result := not Result;
+      Exit;
+    end;
 
-      for I := 0 to FCharSetList.Count - 1 do
-      begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(UChar(AStr^)) then
-        begin
-          Result := False;
-          Break;
-        end;
-      end;
-    end
-    else
+    for I := 0 to FCharSetList.Count - 1 do
     begin
-      Ch := ToUChar(AStr, Len);
-
-      if FCharRange.Count > 0 then
+      if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
       begin
-        if FCharRange.IsMatch(Ch) then
-        begin
-          Result := False;
-          Exit;
-        end;
-      end;
-
-      for I := 0 to FCharSetList.Count - 1 do
-      begin
-        if (FCharSetList[I] as TRECharSetCode).IsMatch(Ch) then
-        begin
-          Result := False;
-          Break;
-        end;
+        Result := not Result;
+        Break;
       end;
     end;
   end;
@@ -16610,96 +16577,96 @@ begin
   ADest.EndUpDate;
 end;
 
-procedure TSkRegExp.DumpParse(TreeView: TTreeView);
-
-  function Add(Node: TTreeNode; const S: REString): TTreeNode;
-  begin
-    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
-  end;
-
-  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
-  var
-    ANode: TTreeNode;
-  begin
-    if Code is TREBinCode then
-    begin
-      with Code as TREBinCode do
-      begin
-        case Op of
-          opUnion:
-            ANode := Add(Node, sBinCode_Union);
-          opConcat:
-            ANode := Add(Node, sBinCode_Concat);
-          opEmply:
-            ANode := Add(Node, sBinCode_Emply);
-          opLoop:
-            ANode := Add(Node, sBinCode_Loop);
-          opPlus:
-            ANode := Add(Node, sBinCode_Plus);
-          opStar:
-            ANode := Add(Node, sBinCode_Star);
-          opQuest:
-            ANode := Add(Node, sBinCode_Quest);
-          opBound:
-            ANode := Add(Node, sBinCode_Bound);
-          opLHead:
-            ANode := Add(Node, sBinCode_LHead);
-          opLTail:
-            ANode := Add(Node, sBinCode_LTail);
-          opGroup:
-            ANode := Add(Node, sBinCode_Group);
-          opNoBackTrack:
-            ANode := Add(Node, sBinCode_Suspend);
-          opKeepPattern:
-            ANode := Add(Node, sBinCode_KeepPattern);
-          opFail:
-            ANode := Add(Node, sBinCode_Fail);
-          opPrune:
-            ANode := Add(Node, sBinCode_Prune);
-          opSkip:
-            ANode := Add(Node, sBinCode_Skip);
-          opMark:
-            ANode := Add(Node, sBinCode_Mark);
-          opThen:
-            ANode := Add(Node, sBinCode_Then);
-          opCommint:
-            ANode := Add(Node, sBinCode_Commit);
-          opAccept:
-            ANode := Add(Node, sBinCode_Accept);
-          opAheadMatch:
-            ANode := Add(Node, sBinCode_AheadMatch);
-          opBehindMatch:
-            ANode := Add(Node, sBinCode_BehindMatch);
-          opAheadNoMatch:
-            ANode := Add(Node, sBinCode_AheadNoMatch);
-          opBehindNoMatch:
-            ANode := Add(Node, sBinCode_BehindNoMatch);
-          opGoSub:
-            ANode := Add(Node, sBinCode_GroupCall);
-          opIfMatch:
-            ANode := Add(Node, sBinCode_IfMatch);
-          opIfThen:
-            ANode := Add(Node, sBinCode_IfThen);
-          opDefine:
-            ANode := Add(Node, sBinCode_Define);
-        else
-          raise ESkRegExp.Create(sBinCode_Raise);
-        end;
-        if Left <> nil then
-          DumpParseSub(Left, ANode);
-        if Right <> nil then
-          DumpParseSub(Right, ANode);
-      end;
-    end
-    else
-      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
-  end;
-
-begin
-  TreeView.Items.Clear;
-  DumpParseSub(FCode, nil);
-  TreeView.FullExpand;
-end;
+//procedure TSkRegExp.DumpParse(TreeView: TTreeView);
+//
+//  function Add(Node: TTreeNode; const S: REString): TTreeNode;
+//  begin
+//    Result := TreeView.Items.AddChild(Node, Format('%s', [S]));
+//  end;
+//
+//  procedure DumpParseSub(Code: TRECode; Node: TTreeNode);
+//  var
+//    ANode: TTreeNode;
+//  begin
+//    if Code is TREBinCode then
+//    begin
+//      with Code as TREBinCode do
+//      begin
+//        case Op of
+//          opUnion:
+//            ANode := Add(Node, sBinCode_Union);
+//          opConcat:
+//            ANode := Add(Node, sBinCode_Concat);
+//          opEmply:
+//            ANode := Add(Node, sBinCode_Emply);
+//          opLoop:
+//            ANode := Add(Node, sBinCode_Loop);
+//          opPlus:
+//            ANode := Add(Node, sBinCode_Plus);
+//          opStar:
+//            ANode := Add(Node, sBinCode_Star);
+//          opQuest:
+//            ANode := Add(Node, sBinCode_Quest);
+//          opBound:
+//            ANode := Add(Node, sBinCode_Bound);
+//          opLHead:
+//            ANode := Add(Node, sBinCode_LHead);
+//          opLTail:
+//            ANode := Add(Node, sBinCode_LTail);
+//          opGroup:
+//            ANode := Add(Node, sBinCode_Group);
+//          opNoBackTrack:
+//            ANode := Add(Node, sBinCode_Suspend);
+//          opKeepPattern:
+//            ANode := Add(Node, sBinCode_KeepPattern);
+//          opFail:
+//            ANode := Add(Node, sBinCode_Fail);
+//          opPrune:
+//            ANode := Add(Node, sBinCode_Prune);
+//          opSkip:
+//            ANode := Add(Node, sBinCode_Skip);
+//          opMark:
+//            ANode := Add(Node, sBinCode_Mark);
+//          opThen:
+//            ANode := Add(Node, sBinCode_Then);
+//          opCommint:
+//            ANode := Add(Node, sBinCode_Commit);
+//          opAccept:
+//            ANode := Add(Node, sBinCode_Accept);
+//          opAheadMatch:
+//            ANode := Add(Node, sBinCode_AheadMatch);
+//          opBehindMatch:
+//            ANode := Add(Node, sBinCode_BehindMatch);
+//          opAheadNoMatch:
+//            ANode := Add(Node, sBinCode_AheadNoMatch);
+//          opBehindNoMatch:
+//            ANode := Add(Node, sBinCode_BehindNoMatch);
+//          opGoSub:
+//            ANode := Add(Node, sBinCode_GroupCall);
+//          opIfMatch:
+//            ANode := Add(Node, sBinCode_IfMatch);
+//          opIfThen:
+//            ANode := Add(Node, sBinCode_IfThen);
+//          opDefine:
+//            ANode := Add(Node, sBinCode_Define);
+//        else
+//          raise ESkRegExp.Create(sBinCode_Raise);
+//        end;
+//        if Left <> nil then
+//          DumpParseSub(Left, ANode);
+//        if Right <> nil then
+//          DumpParseSub(Right, ANode);
+//      end;
+//    end
+//    else
+//      TreeView.Items.AddChild(Node, (Code as TRECode).GetDebugStr);
+//  end;
+//
+//begin
+//  TreeView.Items.Clear;
+//  DumpParseSub(FCode, nil);
+//  TreeView.FullExpand;
+//end;
 
 {$ENDIF}
 
@@ -17463,5 +17430,151 @@ begin
   end;
 end;
 
+
+{ TRECharList }
+
+function TRECharList.Add(AWChar: UChar): Integer;
+var
+  Item: PRECharRangeRec;
+  LComp, Index: Integer;
+begin
+  Result := -1;
+
+  LComp := Compare(AWChar, Index);
+  if LComp < 0 then
+  begin
+    Inc(FCount);
+    SetLength(FCharArray, FCount);
+
+    if Index = -1 then
+    begin
+      FCharArray[FCount - 1] := AWChar;
+      Result := FCount - 1;
+    end
+    else
+    begin
+      InternalInsert(Index, AWChar);
+      Result := Index;
+    end;
+  end
+  else if LComp > 0 then
+  begin
+    Inc(FCount);
+    SetLength(FCharArray, FCount);
+    FCharArray[FCount - 1] := AWChar;
+    Result := FCount - 1;
+  end;
+end;
+
+procedure TRECharList.Assign(Source: TRECharList);
+var
+  I: Integer;
+begin
+  FCount := Source.FCount;
+  SetLength(FCharArray, FCount);
+
+  for I := 0 to Source.FCount - 1 do
+    FCharArray[I] := Source.FCharArray[I];
+
+end;
+
+procedure TRECharList.Clear;
+begin
+  FCount := 0;
+  SetLength(FCharArray, 0);
+end;
+
+function TRECharList.Compare(Ch: UChar; out Index: Integer): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  Index := -1;
+
+  if FCount = 0 then
+    Exit;
+
+  I := 0;
+
+  Index := -1;
+  while I < FCount do
+  begin
+    if Ch < FCharArray[I] then
+    begin
+      Result := -1;
+      Index := I;
+      Exit;
+    end
+    else if Ch > FCharArray[I] then
+      Inc(I)
+    else
+    begin
+      Result := 0;
+      Index := I;
+      Exit;
+    end;
+  end;
+  Result := 1;
+  Index := I;
+end;
+
+function TRECharList.Count: Integer;
+begin
+  Result := FCount;
+end;
+
+constructor TRECharList.Create;
+begin
+  inherited Create;
+
+end;
+
+destructor TRECharList.Destroy;
+begin
+  SetLength(FCharArray, 0);
+  inherited;
+end;
+
+function TRECharList.GetDebugStr: REString;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to FCount - 1 do
+    Result := Result + UCharToString(FCharArray[I])
+end;
+
+procedure TRECharList.InternalInsert(Index: Integer; AWChar: UChar);
+var
+  I: Integer;
+begin
+  for I := FCount - 1 downto Index do
+    FCharArray[I] := FCharArray[I - 1];
+  FCharArray[Index] := AWChar;
+end;
+
+function TRECharList.IsMatch(Ch: UChar): Boolean;
+var
+  ALeft, ARight, AMid: Integer;
+  P: PRECharRangeRec;
+begin
+  Result := False;
+  ALeft := 0;
+  ARight := FCount - 1;
+
+  while (ALeft <= ARight) do
+  begin
+    AMid := (ALeft + ARight) shr 1;
+    if Ch = FCharArray[AMid] then
+    begin
+      Result := True;
+      Exit;
+    end;
+    if FCharArray[AMid] > Ch then
+      ARight := AMid - 1
+    else
+      ALeft := AMid + 1;
+  end;
+end;
 
 end.
