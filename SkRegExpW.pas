@@ -531,12 +531,17 @@ type
 
   TRECharList = class
   private
+{$IFDEF SKREGEXP_DEBUG}
+    FRegExp: TSkRegExp;
+{$ENDIF SKREGEXP_DEBUG}
     FCharArray: UCharArray;
     FCount: Integer;
   protected
     procedure InternalInsert(Index: Integer; AWChar: UChar);
   public
-    constructor Create;
+{$IFDEF SKREGEXP_DEBUG}
+    constructor Create(ARegExp: TSkRegExp);
+{$ENDIF SKREGEXP_DEBUG}
     destructor Destroy; override;
     procedure Assign(Source: TRECharList);
     function Add(AWChar: UChar): Integer;
@@ -1813,7 +1818,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.6A';
+  CONST_VERSION = '3.1.7';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -6099,7 +6104,11 @@ begin
   inherited Create(ARegExp, AOptions);
   FCharSetList := TObjectList.Create;
   FCharRange := TRECharRange.Create;
+{$IFDEF SKREGEXP_DEBUG}
+  FCharList := TRECharList.Create(ARegExp);
+{$ELSE SKREGEXP_DEBUG}
   FCharList := TRECharList.Create;
+{$ENDIF SKREGEXP_DEBUG}
   FNegative := ANegative;
   FIgnoreCase := roIgnoreCase in FOptions;
   FASCIIOnly := (roASCIIOnly in FOptions) or (roASCIICharClass in FOptions);
@@ -17523,11 +17532,13 @@ begin
   Result := FCount;
 end;
 
-constructor TRECharList.Create;
+{$IFDEF SKREGEXP_DEBUG}
+constructor TRECharList.Create(ARegExp: TSkRegExp);
 begin
   inherited Create;
-
+  FRegExp := ARegExp;
 end;
+{$ENDIF SKREGEXP_DEBUG}
 
 destructor TRECharList.Destroy;
 begin
@@ -17565,6 +17576,8 @@ begin
   while (ALeft <= ARight) do
   begin
     AMid := (ALeft + ARight) shr 1;
+    FRegExp.FMatchProcess.Add(
+      Format(#0009'Ch=%d FCharArray[%d]=%d',[Ch, AMid, Ch]));
     if Ch = FCharArray[AMid] then
     begin
       Result := True;
