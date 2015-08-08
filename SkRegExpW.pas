@@ -6652,6 +6652,11 @@ begin
   if AStr^ < #$0080 then
   begin
     Len := 1;
+
+    FRegExp.FMatchProcess.Add(
+      Format(#0009'CCLASS IN ASCII Ch=$%x(%s), Len=%d,  [Pos=%d]',
+      [UChar(AStr^), UCharToString(ToUChar(AStr)), Len, AStr - FRegExp.FTextTopP + 1]));
+
     if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
     begin
       Result := not Result;
