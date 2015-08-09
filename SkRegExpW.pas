@@ -5124,26 +5124,6 @@ begin
   end;
 end;
 
-//function TREDigitCharCode.Match(Ch: UChar): Boolean;
-//begin
-//  Result := False;
-//
-//  if Ch < 128 then
-//  begin
-//    Result := IsDigitA(Ch);
-//{$IFDEF USE_UNICODE_PROPERTY}
-//  end
-//  else
-//  begin
-//    if not FIsASCII then
-//      Result := IsDigitU(Ch);
-//{$ENDIF USE_UNICODE_PROPERTY}
-//  end;
-//
-//  if FNegative then
-//    Result := not Result;
-//end;
-
 { TRESpaceCharCode }
 
 function TRESpaceCharCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
@@ -5242,26 +5222,6 @@ begin
       Result := True;
   end;
 end;
-
-//function TRESpaceCharCode.Match(Ch: UChar): Boolean;
-//begin
-//  Result := False;
-//
-//  if Ch < 128 then
-//  begin
-//    Result := IsSpacePerlA(Ch);
-//{$IFDEF USE_UNICODE_PROPERTY}
-//  end
-//  else
-//  begin
-//    if not FIsASCII then
-//      Result := IsSpacePerlU(Ch);
-//{$ENDIF USE_UNICODE_PROPERTY}
-//  end;
-//
-//  if FNegative then
-//    Result := not Result;
-//end;
 
 { TRHorizontalSpaceCharCode }
 
@@ -5567,11 +5527,6 @@ begin
   begin
     AMid := (ALeft + ARight) shr 1;
     P := FList[AMid];
-    FRegExp.FMatchProcess.Add(
-      Format(#0009'Ch=$%x(%s) : FCharRange[%d]={$%x(%s), $%x(%s)}',
-        [Ch, UCharToString(Ch), AMid,
-          P.StartWChar, UCharToString(P.StartWChar),
-          P.LastWChar, UCharToString(P.LastWChar)]));
     if (Ch >= P.StartWChar) and (Ch <= P.LastWChar) then
     begin
       Result := True;
@@ -6645,17 +6600,9 @@ begin
     Exit;
   end;
 
-  FRegExp.FMatchProcess.Add(
-    Format(#0009'CCLASS HEAD AStr^=$%x(%s) [Pos=%d]',
-    [ToUChar(AStr), UCharToString(ToUChar(AStr)), AStr - FRegExp.FTextTopP + 1]));
-
   if AStr^ < #$0080 then
   begin
     Len := 1;
-
-    FRegExp.FMatchProcess.Add(
-      Format(#0009'CCLASS IN ASCII Ch=$%x(%s), Len=%d,  [Pos=%d]',
-      [UChar(AStr^), UCharToString(ToUChar(AStr)), Len, AStr - FRegExp.FTextTopP + 1]));
 
     if (FASCIIMap[Byte(AStr^) div 8] and (1 shl (Byte(AStr^) and 7))) <> 0 then
     begin
@@ -6675,10 +6622,6 @@ begin
   else
   begin
     Ch := ToUChar(AStr, Len);
-
-    FRegExp.FMatchProcess.Add(
-      Format(#0009'CCLASS IN UNICODE Ch=$%x(%s), Len=%d,  [Pos=%d]',
-      [Ch, UCharToString(Ch), Len, AStr - FRegExp.FTextTopP + 1]));
 
     if FHasRange and FCharRange.IsMatch(Ch) then
     begin
@@ -7381,24 +7324,6 @@ begin
       Result := True;
   end;
 end;
-
-//function TREPosixCharClassCode.Match(Ch: UChar): Boolean;
-//var
-//  LFold: TUnicodeMultiChar;
-//begin
-//  ClearUnicodeMultiChar(LFold);
-//
-//{$IFDEF USE_UNICODE_PROPERTY}
-//  Result := IsPosixClassU(Ch, FPosixClass, roIgnoreCase in FOptions);
-//{$ELSE USE_UNICODE_PROPERTY}
-//  Result := (Ch < 128) and
-//    IsPosixClassA(Ch, FPosixClass, roIgnoreCase in FOptions);
-//{$ENDIF USE_UNICODE_PROPERTY}
-//
-//  if FNegative then
-//    Result := not Result;
-//end;
-
 
 { TREPosixCharPropertyCode }
 
