@@ -31,6 +31,12 @@ unit SkRegExpW;
 
 interface
 
+{$IFDEF CONDITIONALEXPRESSIONS}
+  {$IF CompilerVersion >= 20}
+    {$HIGHCHARUNICODE ON}
+  {$IFEND}
+{$ENDIF}
+
 { Jananese Extenstion Define.
   Undefine JapaneseExt if you do not use Japanese.
 
@@ -67,11 +73,7 @@ uses
   ;
 
 const
-{$IFDEF CONDITIONALEXPRESSIONS}
-{$IF CompilerVersion >= 16.0}
   MaxListSize = Maxint div 16;
-{$IFEND}
-{$ENDIF}
   CONST_GroupNameHashMax = 15;
   CONST_TrieHashMax = 15;
   CONST_GroupMax = 65535;
@@ -1394,12 +1396,8 @@ type
   end;
   PREBackTrackStateRec = ^TREBackTrackStateRec;
 
-{$IFDEF CONDITIONALEXPRESSIONS}
-{$IF CompilerVersion >= 16.0}
   PPointerList = ^TPointerList;
   TPointerList = array [0 .. MaxListSize - 1] of Pointer;
-{$IFEND}
-{$ENDIF}
 
   { バックトラック用のステートを保存するクラス }
   TREBackTrackStack = class
@@ -2993,7 +2991,7 @@ begin
     C1 := P1^;
     C2 := P2^;
 
-    if (C1 <> C2) or (C1 = #0) then
+    if (C1 <> C2) or (C1 = #0000) then
     begin
       Result := Ord(C1) - Ord(C2);
       Exit;
@@ -8027,7 +8025,7 @@ begin
   if roExtended in FOptions then
     SkipWhiteSpace;
 
-  if FP^ = #0 then
+  if FP^ = #0000 then
   begin
     if FContext <> ctNormal then
       Error(sUnmatchedBigPar);
@@ -8461,7 +8459,7 @@ begin
   L := 1;
   CharNext(FP);
 
-  if FP^ = #0 then
+  if FP^ = #0000 then
     Error(sRegExpNotCompleted, GetCompileErrorPos);
 
   case FP^ of
@@ -8735,7 +8733,7 @@ begin
     end
     else
     begin
-      while FP^ <> #0 do
+      while FP^ <> #0000 do
       begin
         if FP^ = LastDelimiter then
         begin
@@ -8769,7 +8767,7 @@ begin
 
   StartP := FP;
 
-  while FP^ <> #0 do
+  while FP^ <> #0000 do
   begin
     if FP^ = LastDelimiter then
     begin
@@ -8824,7 +8822,7 @@ begin
       '#':
         begin
           CharNext(FP);
-          while FP^ <> #0 do
+          while FP^ <> #0000 do
           begin
             if FP^ = ')' then
             begin
@@ -9090,7 +9088,7 @@ begin
   else
     IsNotExlude := False;
 
-  while FP^ <> #0 do
+  while FP^ <> #0000 do
   begin
     if (FP^ = '-') then
     begin
@@ -9242,9 +9240,9 @@ begin
 
   P := FP;
 
-  while P^ <> #0 do
+  while P^ <> #0000 do
   begin
-    if (P^ = ']') or (P^ = #0) then
+    if (P^ = ']') or (P^ = #0000) then
     begin
       FWChar := GetREChar(FP, L, [], FFold);
       FToken := tkChar;
@@ -9303,7 +9301,7 @@ begin
 
   StartP := FP;
 
-  while FP^ <> #0 do
+  while FP^ <> #0000 do
   begin
     if FP^ = '}' then
     begin
@@ -9415,7 +9413,7 @@ begin
     begin
       if LastDelimiter = '>' then
       begin
-        while FP^ <> #0 do
+        while FP^ <> #0000 do
         begin
           if (FP^ = '>') then
           begin
@@ -9440,7 +9438,7 @@ begin
       end
       else
       begin
-        while FP^ <> #0 do
+        while FP^ <> #0000 do
         begin
           if FP^ = LastDelimiter then
           begin
@@ -9589,8 +9587,8 @@ end;
 
 procedure TRELex.SkipWhiteSpace;
 begin
-  while (FP^ <> #0) and ((FP^ = ' ') or (FP^ = #9) or (FP^ = #10) or
-    (FP^ = #13)) do
+  while (FP^ <> #0000) and ((FP^ = ' ') or (FP^ = #0009) or (FP^ = #0010) or
+    (FP^ = #0013)) do
     Inc(FP);
 end;
 
@@ -12841,7 +12839,7 @@ begin
   LCount := 1;
   P := FSubExp;
 
-  while P^ <> #0 do
+  while P^ <> #0000 do
   begin
     if P^ = '(' then
     begin
@@ -16130,7 +16128,7 @@ begin
   P := PWideChar(S);
   StartP := P;
 
-  while P^ <> #0 do
+  while P^ <> #0000 do
   begin
     if P^ = '\' then
     begin
@@ -16140,7 +16138,7 @@ begin
           begin
             SaveP := P;
             N := 0;
-            while P^ <> #0 do
+            while P^ <> #0000 do
             begin
               case P^ of
                 '0'..'9':
@@ -17089,7 +17087,7 @@ begin
     case Result[I] of
       '.', '[', ']', '(', ')', '?', '*', '+', '{', '}', '^', '$', '|', '\':
         Insert('\', Result, I);
-      #0:
+      #0000:
         begin
           Result[I] := '0';
           Insert('\', Result, I);
