@@ -1796,7 +1796,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.7';
+  CONST_VERSION = '3.1.8';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
