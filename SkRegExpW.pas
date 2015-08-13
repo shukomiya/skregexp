@@ -1274,6 +1274,12 @@ type
     property EndP: PWideChar read FEndP write FEndP;
   end;
 
+  TRECaptureRec = record
+    StartP, EndP, StartPBuf: PWideChar;
+    Success: Boolean;
+  end;
+  PRECaptureRec = ^TRECaptureRec;
+
   { マッチ結果を保持するクラス }
   TGroup = class
   private
@@ -1374,16 +1380,23 @@ type
 
   TREGroupStack = class
   private
+{$IFDEF SKREGEXP_DEBUG}
     FRegExp: TSkRegExp;
+{$ENDIF SKREGEXP_DEBUG}
     FCurIndex: Integer;
-    FItems: TObjectList;
+    FItems: TList;
   public
+{$IFDEF SKREGEXP_DEBUG}
     constructor Create(ARegExp: TSkRegExp);
+{$ELSE SKREGEXP_DEBUG}
+    constructor Create;
+{$ENDIF SKREGEXP_DEBUG}
     destructor Destroy; override;
     procedure Clear;
     procedure Push(AGroups: TGroupCollection);
     procedure Pop(var AGroups: TGroupCollection); overload;
     procedure Pop(var AGroups: TGroupCollection; const Index: Integer); overload;
+    procedure Reset;
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString;
 {$ENDIF SKREGEXP_DEBUG}
@@ -1456,6 +1469,7 @@ type
     function Peek: PREGoSubStateRec;
     procedure Push(AGroupIndex: Integer; EndCode, NextCode: TRENFAState);
     procedure Pop;
+    procedure Reset;
     property Index: Integer read GetIndex write SetIndex;
     property GroupIndex: Integer read GetGroupIndex;
     property State[Index: Integer]: PREGoSubStateRec read GetState; default;
@@ -1640,11 +1654,14 @@ type
     procedure DoReplaceFunc(Sender: TObject; var ReplaceWith: REString);
   public
     IsLineBreak: TREIsLineBreakMethod;
-//
+
     constructor Create(AOptions: TREOptions = [];
       ALineBreakKind: TRELineBreakKind = lbAnyCRLF); overload;
-    constructor Create(AExpression: REString; AOptions: TREOptions = [];
+
+    constructor Create(const AExpression: REString;
+      AOptions: TREOptions = [];
       ALineBreakKind: TRELineBreakKind = lbAnyCRLF); overload;
+
     destructor Destroy; override;
 
     { 正規表現を構文解析し、NFAを生成する }
@@ -13210,21 +13227,54 @@ end;
 { TREGroupStack }
 
 procedure TREGroupStack.Clear;
+var
+  I: Integer;
+  LCapture: PRECaptureRec;
+  LCollection: TList;
+  J: Integer;
 begin
+  for I := 0 to FItems.Count - 1 do
+  begin
+    LCollection := FItems[I];
+    if LCollection <> nil then
+    begin
+      for J := 0 to LCollection.Count - 1 do
+      begin
+        LCapture := LCollection[J];
+        if LCapture <> nil then
+          Dispose(LCapture);
+      end;
+      LCollection.Free;
+    end;
+  end;
   FItems.Clear;
   FCurIndex := 0;
 end;
+
+{$IFDEF SKREGEXP_DEBUG}
 
 constructor TREGroupStack.Create(ARegExp: TSkRegExp);
 begin
   inherited Create;
   FRegExp := ARegExp;
-  FItems := TObjectList.Create;
+  FItems := TList.Create;
   FCurIndex := 0;
 end;
 
+{$ELSE SKREGEXP_DEBUG}
+
+constructor TREGroupStack.Create;
+begin
+  inherited Create;
+  FItems := TList.Create;
+  FCurIndex := 0;
+end;
+
+{$ENDIF SKREGEXP_DEBUG}
+
 destructor TREGroupStack.Destroy;
 begin
+  Clear;
   FItems.Free;
   inherited;
 end;
@@ -13258,7 +13308,7 @@ begin
       else if LCapture.StartP <> nil then
       begin
         SetString(S, LCapture.StartP, 1);
-        S := FRegExp.EncodeEscape(S);
+        S := TSkRegExp.EncodeEscape(S);
 
         Index := LCapture.StartP - FRegExp.FTextTopP + 1;
         Len := 1;
@@ -13279,8 +13329,8 @@ procedure TREGroupStack.Pop(var AGroups: TGroupCollection;
   const Index: Integer);
 var
   I: Integer;
-  LCapture: TGroup;
-  LCollection: TObjectList;
+  LCapture: PRECaptureRec;
+  LCollection: TList;
 begin
   if FItems.Count = 0 then
     Exit;
@@ -13290,36 +13340,36 @@ begin
   else
     FCurIndex := Index + 1;
 
-  LCollection := TObjectList(FItems[FCurIndex - 1]);
+  LCollection := TList(FItems[FCurIndex - 1]);
 
   for I := 0 to LCollection.Count - 1 do
   begin
-    LCapture := TGroup(LCollection[I]);
-    AGroups[I].FStartP := LCapture.FStartP;
-    AGroups[I].FEndP := LCapture.FEndP;
-    AGroups[I].FStartPBuf := LCapture.FStartPBuf;
-    AGroups[I].FSuccess := LCapture.FSuccess;
+    LCapture := LCollection[I];
+    AGroups[I].FStartP := LCapture.StartP;
+    AGroups[I].FEndP := LCapture.EndP;
+    AGroups[I].FStartPBuf := LCapture.StartPBuf;
+    AGroups[I].FSuccess := LCapture.Success;
   end;
 end;
 
 procedure TREGroupStack.Pop(var AGroups: TGroupCollection);
 var
   I: Integer;
-  LCapture: TGroup;
-  LCollection: TObjectList;
+  LCapture: PRECaptureRec;
+  LCollection: TList;
 begin
   if FItems.Count = 0 then
     Exit;
 
-  LCollection := TObjectList(FItems[FCurIndex - 1]);
+  LCollection := TList(FItems[FCurIndex - 1]);
 
   for I := 0 to LCollection.Count - 1 do
   begin
-    LCapture := TGroup(LCollection[I]);
-    AGroups[I].FStartP := LCapture.FStartP;
-    AGroups[I].FEndP := LCapture.FEndP;
-    AGroups[I].FStartPBuf := LCapture.FStartPBuf;
-    AGroups[I].FSuccess := LCapture.FSuccess;
+    LCapture := LCollection[I];
+    AGroups[I].FStartP := LCapture.StartP;
+    AGroups[I].FEndP := LCapture.EndP;
+    AGroups[I].FStartPBuf := LCapture.StartPBuf;
+    AGroups[I].FSuccess := LCapture.Success;
   end;
   Dec(FCurIndex);
 end;
@@ -13327,21 +13377,21 @@ end;
 procedure TREGroupStack.Push(AGroups: TGroupCollection);
 var
   I: Integer;
-  LCapture: TGroup;
-  LCollection: TObjectList;
+  LCapture: PRECaptureRec;
+  LCollection: TList;
 begin
   if FCurIndex > FItems.Count - 1 then
   begin
-    LCollection := TObjectList.Create;
+    LCollection := TList.Create;
 
     for I := 0 to AGroups.Count - 1 do
     begin
-      LCapture := TGroup.Create(FRegExp);
+      New(LCapture);
 
-      LCapture.FStartP := FRegExp.FGroups[I].StartP;
-      LCapture.FStartPBuf := FRegExp.FGroups[I].StartPBuf;
-      LCapture.FEndP := FRegExp.FGroups[I].EndP;
-      LCapture.FSuccess := FRegExp.FGroups[I].Success;
+      LCapture.StartP := AGroups[I].StartP;
+      LCapture.StartPBuf := AGroups[I].StartPBuf;
+      LCapture.EndP := AGroups[I].EndP;
+      LCapture.Success := AGroups[I].Success;
 
       LCollection.Add(LCapture);
     end;
@@ -13354,15 +13404,20 @@ begin
 
     for I := 0 to AGroups.Count - 1 do
     begin
-      LCapture := TGroup(LCollection[I]);
+      LCapture := LCollection[I];
 
-      LCapture.FStartP := FRegExp.FGroups[I].StartP;
-      LCapture.FStartPBuf := FRegExp.FGroups[I].StartPBuf;
-      LCapture.FEndP := FRegExp.FGroups[I].EndP;
-      LCapture.FSuccess := FRegExp.FGroups[I].Success;
+      LCapture.StartP := AGroups[I].StartP;
+      LCapture.StartPBuf := AGroups[I].StartPBuf;
+      LCapture.EndP := AGroups[I].EndP;
+      LCapture.Success := AGroups[I].Success;
     end;
   end;
   Inc(FCurIndex);
+end;
+
+procedure TREGroupStack.Reset;
+begin
+  FCurIndex := 0;
 end;
 
 { TREBackTrackStack }
@@ -13831,6 +13886,11 @@ begin
   end;
 
   Inc(FCurIndex);
+end;
+
+procedure TREGoSubStack.Reset;
+begin
+  FCurIndex := 0;
 end;
 
 procedure TREGoSubStack.SetIndex(const Value: Integer);
@@ -14436,7 +14496,10 @@ var
 begin
   FGroups.Reset;
   if FRegExp.FHasGoSub then
-    FRegExp.FSubStack.Clear;
+  begin
+    FRegExp.FSubStack.Reset;
+    FRegExp.FGroupStack.Reset;
+  end;
   FLoopState.Reset;
   FBackTrackStack.Clear;
   FHasSkip := False;
@@ -15977,6 +16040,12 @@ begin
     ClearCodeList;
     ClearBinCodeList;
     FGroups.Clear;
+    FLoopState.Clear;
+    if FHasGoSub then
+    begin
+      FSubStack.Clear;
+      FGroupStack.Clear;
+    end;
 
     Parser := TREParser.Create(Self, FExpression);
     try
@@ -15999,8 +16068,9 @@ begin
   end;
 end;
 
-constructor TSkRegExp.Create(AExpression: REString; AOptions: TREOptions;
-  ALineBreakKind: TRELineBreakKind);
+constructor TSkRegExp.Create(const AExpression: REString;
+  AOptions: TREOptions = [];
+  ALineBreakKind: TRELineBreakKind = lbAnyCRLF);
 begin
   Create(AOptions, ALineBreakKind);
   SetExpression(AExpression);
@@ -16018,7 +16088,11 @@ begin
   FBinCodeList := TList.Create;
   FStateList := TList.Create;
   FVerbNames := TREStringList.Create;
+{$IFDEF SKREGEXP_DEBUG}
   FGroupStack := TREGroupStack.Create(Self);
+{$ELSE SKREGEXP_DEBUG}
+  FGroupStack := TREGroupStack.Create;
+{$ENDIF SKREGEXP_DEBUG}
   FSubStack := TREGoSubStack.Create(Self);
   FOptimizeData := TREOptimizeDataCollection.Create;
   FLoopState := TRELoopStateList.Create;
