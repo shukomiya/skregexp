@@ -4,8 +4,6 @@
        Del) Remove global variable SkRegExpDefaultOptions and SkRegExpDefaultLineBreakind.
        Add) It has to be able to set the initial value of the regular expression options and
             new line rule in the "TSkRegExp.Create" method.
-       Mod) The processing of the character type check function (such as IsWord)
-            it was changed to a simple comparison operation from the bit vector.
        Mod) ^ and $ the difference between the behavior of qualifiers was to be
             determined at compile time.
        Del) Remove TREParser.Factor within the function CheckEmptyLoop.

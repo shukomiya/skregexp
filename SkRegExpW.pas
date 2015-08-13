@@ -1832,6 +1832,60 @@ const
   CONST_Wide_Dakuten_CS = #$3099;
   CONST_Wide_Handakuten_CS = #$309A;
 
+  CONST_AnyAMap: TREASCIICharMapArray = (
+    $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+  );
+  CONST_AlnumAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $FE, $FF, $FF, $07, $FE, $FF, $FF, $07
+  );
+  CONST_AlphaAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07, $FE, $FF, $FF, $07
+  );
+  CONST_BlankAMap: TREASCIICharMapArray = (
+    $00, $02, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_CntrlAMap: TREASCIICharMapArray = (
+    $FF, $FF, $FF, $FF, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $80
+  );
+  CONST_SpaceAMap: TREASCIICharMapArray = (
+    $00, $3E, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_SpacePerlAMap: TREASCIICharMapArray = (
+    $00, $36, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+  CONST_GraphAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $FE, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $7F
+  );
+  CONST_LowerAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07
+  );
+  CONST_PrintAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $7F
+  );
+  CONST_PunctAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $FE, $FF, $00, $FC, $01, $00, $00, $F8, $01, $00, $00, $78
+  );
+  CONST_UpperAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $00, $00, $FE, $FF, $FF, $07, $00, $00, $00, $00
+  );
+  CONST_XDigitAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $7E, $00, $00, $00, $7E, $00, $00, $00
+  );
+  CONST_WordAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $FE, $FF, $FF, $87, $FE, $FF, $FF, $07
+  );
+  CONST_DigitAMap: TREASCIICharMapArray = (
+    $00, $00, $00, $00, $00, $00, $FF, $03, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+
+  CONST_SpaceVerticalAMap: TREASCIICharMapArray = (
+    $00, $3C, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+
+  CONST_SpaceHorizontalAMap: TREASCIICharMapArray = (
+    $00, $02, $00, $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+  );
+
 {$IFDEF JapaneseExt}
   HalfToWideAnkTable: array[$0020 .. $007E] of UChar = (
     $3000, $FF01, $FF02, $FF03, $FF04, $FF05, $FF06, $FF07, $FF08, $FF09,
@@ -2510,12 +2564,8 @@ end;
 
 function IsAlnumA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    UChar('A')..UChar('Z'), UChar('a')..UChar('z'), UChar('0')..UChar('9'):
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_AlnumAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2537,12 +2587,8 @@ end;
 
 function IsAlphaA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    Ord('A')..Ord('Z'), Ord('a')..Ord('z'):
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+      (CONST_AlphaAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2562,12 +2608,9 @@ end;
 
 function IsBlankA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    $0009, $0020:
-      Result := True;
-    else
-      Result := False;
-  end;
+//    [ \t]
+  Result :=
+    (CONST_BlankAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2581,12 +2624,8 @@ end;
 function IsCntrlA(Ch: UChar): Boolean; overload; inline;
 begin
 //  [\x00-\x1F\x7F]
-  case Ch of
-    0..$001F, $007F:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_CntrlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2598,7 +2637,8 @@ end;
 
 function IsDigitA(Ch: UChar): Boolean; inline;
 begin
-  Result := (Ch >= UChar('0')) and (Ch <= UChar('9'));
+  Result :=
+    (CONST_DigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2610,12 +2650,8 @@ end;
 
 function IsSpaceA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    $9, $A, $B, $C, $D, $20:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_SpaceAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2630,22 +2666,25 @@ end;
 
 function IsSpacePerlA(Ch: UChar): Boolean; inline; overload;
 begin
-  case Ch of
-    $9, $A, $C, $D, $20:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_SpacePerlAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
 function IsSpacePerlU(Ch: UChar): Boolean; inline; overload;
 begin
-  case Ch of
-    $9, $A, $C, $D, $20, $0085, $2028, $2029:
-      Result := True;
-    else
-      Result := GetUnicodeGeneralCategory(Ch) = upZ;
+  if (Ch < 128) then
+  begin
+    Result := IsSpacePerlA(Ch);
+  end
+  else
+  begin
+    case Ch of
+      $0085, $2028, $2029:
+        Result := True;
+      else
+        Result := GetUnicodeGeneralCategory(Ch) = upZ;
+    end;
   end;
 end;
 {$ENDIF USE_UNICODE_PROPERTY}
@@ -2653,12 +2692,8 @@ end;
 function IsGraphA(Ch: UChar): Boolean; inline;
 begin
 //  [\x21-\x7E]
-    case Ch of
-      $21..$7E:
-        Result := True;
-      else
-        Result := False;
-    end;
+  Result :=
+    (CONST_GraphAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2666,7 +2701,7 @@ function IsGraphU(Ch: UChar): Boolean;
 var
   up: TUnicodeProperty;
 begin
-  //[\P{IsSpace}\P{Cc}\P{Cn}\P{Cs}]と同じ
+//[\P{IsSpace}\P{Cc}\P{Cn}\P{Cs}]と同じ
   if IsSpaceU(Ch) then
     Result := False
   else
@@ -2679,12 +2714,8 @@ end;
 
 function IsLowerA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    $61..$7a:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_LowerAMap[Ch div 8] and (1 shl (Ch and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2697,12 +2728,8 @@ end;
 function IsPrintA(Ch: UChar): Boolean; inline;
 begin
 //  [\x20-\x7E]
-  case Ch of
-    $20..$7E:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_PrintAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2724,12 +2751,8 @@ end;
 function IsPunctA(Ch: UChar): Boolean;  inline;
 begin
 //[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]
-  case Ch of
-    $21..$2F, $3a..$40, $5b..$60, $7b..$7e:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_PunctAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2741,12 +2764,8 @@ end;
 
 function IsUpperA(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    $41..$5a:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_UpperAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2758,22 +2777,14 @@ end;
 
 function IsXDigit(Ch: UChar): Boolean; inline;
 begin
-  case Ch of
-    $30..$39, $41..$46, $61..$66:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_XDigitAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 function IsWordA(Ch: UChar): Boolean; inline; overload;
 begin
-  case Ch of
-    $30..$39, $41..$5a, $5f, $61..$7a:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_WordAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 {$IFDEF USE_UNICODE_PROPERTY}
@@ -2807,12 +2818,8 @@ end;
 
 function IsSpaceHorizontalA(Ch: UChar): Boolean; inline; overload;
 begin
-  case Ch of
-    0009, $0020, $00A0:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_SpaceHorizontalAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 function IsSpaceHorizontalU(Ch: UChar): Boolean; inline; overload;
@@ -2828,12 +2835,8 @@ end;
 
 function IsSpaceVerticalA(Ch: UChar): Boolean; inline; overload;
 begin
-  case Ch of
-    $000A, $000B, $000C, $000D:
-      Result := True;
-    else
-      Result := False;
-  end;
+  Result :=
+    (CONST_SpaceVerticalAMap[Byte(Ch) div 8] and (1 shl (Byte(Ch) and 7)) <> 0);
 end;
 
 function IsSpaceVerticalU(Ch: UChar): Boolean; inline; overload;
