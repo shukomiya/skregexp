@@ -1,5 +1,11 @@
 ﻿SkRegExp hisotry
 
+   4.0.0
+       Del) Remove global variable SkRegExpDefaultOptions and SkRegExpDefaultLineBreakind.
+       Add) It has to be able to set the initial value of the regular expression options and
+            new line rule in the "TSkRegExp.Create" method.
+       Mod) The processing of the character type check function (such as IsWord)
+            it was changed to a simple comparison operation from the bit vector.
    3.1.8 2015/8/10
        Add) Add {$HIGHCHARUNICODE ON} to the conditions defined.
        Del) Delete a condition defined {$IF CompilerVersion> = 16.0}.

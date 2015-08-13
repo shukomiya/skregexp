@@ -1,5 +1,10 @@
 ﻿正規表現ライブラリ SkRegExp 更新履歴
 
+   4.0.0
+        ・削除）グローバル変数 SkRegExpDefaultOptions と SkRegExpDefaultLineBreakindを削除。
+        ・新規）TSkRegExp.Create で正規表現オプションと改行規則の初期値を設定できるようにした。
+        ・変更）IsWord などの文字種をチェックする関数内の処理をビットベクタから単純な比較演算に戻した。
+                ビットベクタにしても大して速くならなかったため。
    3.1.8 2015/8/1
         ・追加）条件定義に {$HIGHCHARUNICODE ON} を追加。
         ・削除）条件定義 {$IF CompilerVersion >= 16.0} を削除。
