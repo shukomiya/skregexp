@@ -6,6 +6,10 @@
             new line rule in the "TSkRegExp.Create" method.
        Mod) The processing of the character type check function (such as IsWord)
             it was changed to a simple comparison operation from the bit vector.
+       Mod) ^ and $ the difference between the behavior of qualifiers was to be
+            determined at compile time.
+       Del) Remove TREParser.Factor within the function CheckEmptyLoop.
+       Add) To override the IsOverlap method to anchor elements (such as class of TREBoudaryCode).
    3.1.8 2015/8/10
        Add) Add {$HIGHCHARUNICODE ON} to the conditions defined.
        Del) Delete a condition defined {$IF CompilerVersion> = 16.0}.

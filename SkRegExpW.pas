@@ -648,6 +648,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TREReferenceCode = class(TRECode)
@@ -692,6 +693,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TRELineTailCode = class(TRECode)
@@ -702,6 +704,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TRETextHeadCode = class(TRECode)
@@ -712,6 +715,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TRETextTailCode = class(TRECode)
@@ -722,6 +726,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TRETextEndCode = class(TRECode)
@@ -732,6 +737,7 @@ type
 {$IFDEF SKREGEXP_DEBUG}
     function GetDebugStr: REString; override;
 {$ENDIF}
+    function IsOverlap(ACode: TRECode): Boolean; override;
   end;
 
   TREPosixCharClassCode = class(TRECharSetCode)
@@ -1637,7 +1643,7 @@ type
 //
     constructor Create(AOptions: TREOptions = [];
       ALineBreakKind: TRELineBreakKind = lbAnyCRLF); overload;
-    constructor Create(AExpressions: REString; AOptions: TREOptions = [];
+    constructor Create(AExpression: REString; AOptions: TREOptions = [];
       ALineBreakKind: TRELineBreakKind = lbAnyCRLF); overload;
     destructor Destroy; override;
 
@@ -6804,6 +6810,15 @@ begin
   end;
 end;
 
+function TREBoundaryCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  if ACode is TREBoundaryCode then
+    Result := ((ACode as TREBoundaryCode).FNegative = FNegative) and
+      ((ACode as TREBoundaryCode).FIsASCII = FIsASCII)
+  else
+    Result := False
+end;
+
 function TREBoundaryCode.GetCharLength: TRETextPosRec;
 begin
   Result.Min := 0;
@@ -6956,23 +6971,23 @@ begin
   Len := 0;
   Result := False;
 
-  if roMultiLine in FOptions then
-  begin
-    if (AStr = FRegExp.FMatchTopP) then
-      Result := True
-    else
-    begin
-      if AStr = FRegExp.FMatchEndP then
-        Exit;
-      if FRegExp.LineBreakKind = lbCRLF then
-        Dec(AStr, 2)
-      else
-        Dec(AStr);
-      Result := FRegExp.IsLineBreak(AStr) > 0;
-    end;
-  end
+  if (AStr = FRegExp.FMatchTopP) then
+    Result := True
   else
-    Result := AStr = FRegExp.FMatchTopP;
+  begin
+    if AStr = FRegExp.FMatchEndP then
+      Exit;
+    if FRegExp.LineBreakKind = lbCRLF then
+      Dec(AStr, 2)
+    else
+      Dec(AStr);
+    Result := FRegExp.IsLineBreak(AStr) > 0;
+  end;
+end;
+
+function TRELineHeadCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  Result := ACode is TRELineHeadCode;
 end;
 
 function TRELineHeadCode.GetCharLength: TRETextPosRec;
@@ -6992,25 +7007,18 @@ end;
 { TRELineTailCode }
 
 function TRELineTailCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
-var
-  L: Integer;
 begin
   Len := 0;
-  if roMultiLine in FOptions then
-  begin
-    if (AStr = FRegExp.FMatchEndP) then
-      Result := True
-    else
-      Result := FRegExp.IsLineBreak(AStr) > 0;
-  end
-  else
-  begin
-    L := FRegExp.IsLineBreak(AStr);
-    if L > 0 then
-      Inc(AStr, L);
 
-    Result := AStr = FRegExp.FMatchEndP;
-  end;
+  if (AStr = FRegExp.FMatchEndP) then
+    Result := True
+  else
+    Result := FRegExp.IsLineBreak(AStr) > 0;
+end;
+
+function TRELineTailCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  Result := ACode is TRELineTailCode;
 end;
 
 function TRELineTailCode.GetCharLength: TRETextPosRec;
@@ -7033,6 +7041,11 @@ function TRETextHeadCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Len := 0;
   Result := FRegExp.FMatchTopP = AStr;
+end;
+
+function TRETextHeadCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  Result := ACode is TRETextHeadCode;
 end;
 
 function TRETextHeadCode.GetCharLength: TRETextPosRec;
@@ -7063,6 +7076,11 @@ begin
   Result := FRegExp.FMatchEndP = AStr;
 end;
 
+function TRETextTailCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  Result := ACode is TRETextTailCode;
+end;
+
 function TRETextTailCode.GetCharLength: TRETextPosRec;
 begin
   Result.Min := 0;
@@ -7083,6 +7101,11 @@ function TRETextEndCode.IsEqual(AStr: PWideChar; var Len: Integer): Boolean;
 begin
   Len := 0;
   Result := FRegExp.FMatchEndP = AStr;
+end;
+
+function TRETextEndCode.IsOverlap(ACode: TRECode): Boolean;
+begin
+  Result := ACode is TRETextEndCode;
 end;
 
 function TRETextEndCode.GetCharLength: TRETextPosRec;
@@ -8197,9 +8220,15 @@ begin
             end;
           end;
         '^':
-            FToken := tkLHead;
+          if roMultiLine in FOptions then
+            FToken := tkLHead
+          else
+            FToken := tkTHead;
         '$':
-            FToken := tkLTail;
+          if roMultiLine in FOptions then
+            FToken := tkLTail
+          else
+            FToken := tkTTail;
       else
         begin
           FWChar := GetREChar(FP, L, GetRECompareOptions, FFold);
@@ -9583,8 +9612,8 @@ end;
 
 procedure TRELex.SkipWhiteSpace;
 begin
-  while (FP^ <> #0000) and ((FP^ = ' ') or (FP^ = #0009) or (FP^ = #0010) or
-    (FP^ = #0013)) do
+  while (FP^ <> #0000) and ((FP^ = ' ') or (FP^ = #0009) or (FP^ = #$000A) or
+    (FP^ = #$000D)) do
     Inc(FP);
 end;
 
@@ -9672,13 +9701,6 @@ function TREParser.Factor: TRECode;
     end;
   end;
 
-  procedure CheckEmptyLoop(ACode: TRECode);
-  begin
-    if (ACode is TREBoundaryCode) or (ACode is TRETextHeadCode) or
-      (ACode is TRETextTailCode) or (ACode is TRETextEndCode) then
-      FLex.Error(sLoopOfLengthZeroCannotSpecified);
-  end;
-
 var
   LMin, LMax: Integer;
   LToken: TREToken;
@@ -9706,7 +9728,6 @@ begin
     LMax := FLex.Max;
 
     CheckAheadMatch(Result);
-    CheckEmptyLoop(Result);
 
     FLex.GetToken;
 
@@ -15978,17 +15999,19 @@ begin
   end;
 end;
 
-constructor TSkRegExp.Create(AExpressions: REString; AOptions: TREOptions;
+constructor TSkRegExp.Create(AExpression: REString; AOptions: TREOptions;
   ALineBreakKind: TRELineBreakKind);
 begin
-  SetExpression(AExpressions);
   Create(AOptions, ALineBreakKind);
+  SetExpression(AExpression);
 end;
 
 constructor TSkRegExp.Create(AOptions: TREOptions;
   ALineBreakKind: TRELineBreakKind);
 begin
   inherited Create;
+
+  FLineBreakKind := lbAnyCRLF;
   IsLineBreak := IsAnyCRLF;
   FGroups := TGroupCollection.Create(Self);
   FCodeList := TList.Create;
@@ -16001,9 +16024,7 @@ begin
   FLoopState := TRELoopStateList.Create;
 
   FOptions := AOptions;
-
-  if ALineBreakKind <> lbAnyCRLF then
-    SetLineBreakKind(ALineBreakKind);
+  SetLineBreakKind(ALineBreakKind);
 
   FMatchEngine := TREMatchEngine.Create(Self);
 
