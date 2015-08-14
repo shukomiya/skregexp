@@ -1357,30 +1357,6 @@ type
     property Names[AName: REString]: TGroup read GetNames;
   end;
 
-  TREGroupStack = class
-  private
-{$IFDEF SKREGEXP_DEBUG}
-    FRegExp: TSkRegExp;
-{$ENDIF SKREGEXP_DEBUG}
-    FCurIndex: Integer;
-    FItems: TList;
-  public
-{$IFDEF SKREGEXP_DEBUG}
-    constructor Create(ARegExp: TSkRegExp);
-{$ELSE SKREGEXP_DEBUG}
-    constructor Create;
-{$ENDIF SKREGEXP_DEBUG}
-    destructor Destroy; override;
-    procedure Clear;
-    procedure Push(AGroups: TGroupCollection);
-    procedure Pop(var AGroups: TGroupCollection); overload;
-    procedure Pop(var AGroups: TGroupCollection; const Index: Integer); overload;
-    procedure Reset;
-{$IFDEF SKREGEXP_DEBUG}
-    function GetDebugStr: REString;
-{$ENDIF SKREGEXP_DEBUG}
-  end;
-
   TREMatchExplosionStateRec = record
     NFACode: TRENFAState;
     Next: Pointer;
@@ -1546,7 +1522,6 @@ type
     FGroups: TGroupCollection;
     FVerbNames: TREStrings;
 
-    FGroupStack: TREGroupStack;
     FSubStack: TREGoSubStack;
     FOptimizeData: TREOptimizeDataCollection;
     FLoopState: TRELoopStateList;
@@ -13094,202 +13069,6 @@ begin
   end;
 end;
 
-{ TREGroupStack }
-
-procedure TREGroupStack.Clear;
-var
-  I: Integer;
-  LCapture: PRECaptureRec;
-  LCollection: TList;
-  J: Integer;
-begin
-  for I := 0 to FItems.Count - 1 do
-  begin
-    LCollection := FItems[I];
-    if LCollection <> nil then
-    begin
-      for J := 0 to LCollection.Count - 1 do
-      begin
-        LCapture := LCollection[J];
-        if LCapture <> nil then
-          Dispose(LCapture);
-      end;
-      LCollection.Free;
-    end;
-  end;
-  FItems.Clear;
-  FCurIndex := 0;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-
-constructor TREGroupStack.Create(ARegExp: TSkRegExp);
-begin
-  inherited Create;
-  FRegExp := ARegExp;
-  FItems := TList.Create;
-  FCurIndex := 0;
-end;
-
-{$ELSE SKREGEXP_DEBUG}
-
-constructor TREGroupStack.Create;
-begin
-  inherited Create;
-  FItems := TList.Create;
-  FCurIndex := 0;
-end;
-
-{$ENDIF SKREGEXP_DEBUG}
-
-destructor TREGroupStack.Destroy;
-begin
-  Clear;
-  FItems.Free;
-  inherited;
-end;
-
-{$IFDEF SKREGEXP_DEBUG}
-function TREGroupStack.GetDebugStr: REString;
-var
-  I, J, Index, Len: Integer;
-  LCapture: TGroup;
-  LCollection: TObjectList;
-  S: REString;
-begin
-  for I := 0 to FItems.Count - 1 do
-  begin
-    LCollection := TObjectList(FItems[I]);
-
-    for J := 0 to LCollection.Count - 1 do
-    begin
-      LCapture := TGroup(LCollection[J]);
-      if LCapture.Success then
-      begin
-        S := LCapture.Strings;
-        S := FRegExp.EncodeEscape(S);
-
-        Index := LCapture.Index;
-        Len := LCapture.Length;
-        Result := Result +
-          Format('[Cap:%d-%d] %s (Index:%d, Length:%d)'#0013#0010,
-          [I, J, S, Index, Len]);
-      end
-      else if LCapture.StartP <> nil then
-      begin
-        SetString(S, LCapture.StartP, 1);
-        S := TSkRegExp.EncodeEscape(S);
-
-        Index := LCapture.StartP - FRegExp.FTextTopP + 1;
-        Len := 1;
-        Result := Result +
-          Format('[Cap:%d-%d] %s (Index:%d, Length:%d)'#0013#0010,
-          [I, J, S, Index, Len]);
-      end
-      else
-      begin
-        Result := Result + Format('[Cap:%d-%d] NoMatch'#0013#0010, [I, J]);
-      end;
-    end;
-  end;
-end;
-{$ENDIF SKREGEXP_DEBUG}
-
-procedure TREGroupStack.Pop(var AGroups: TGroupCollection;
-  const Index: Integer);
-var
-  I: Integer;
-  LCapture: PRECaptureRec;
-  LCollection: TList;
-begin
-  if FItems.Count = 0 then
-    Exit;
-
-  if Index = -1 then
-    FCurIndex := 1
-  else
-    FCurIndex := Index + 1;
-
-  LCollection := TList(FItems[FCurIndex - 1]);
-
-  for I := 0 to LCollection.Count - 1 do
-  begin
-    LCapture := LCollection[I];
-    AGroups[I].FStartP := LCapture.StartP;
-    AGroups[I].FEndP := LCapture.EndP;
-    AGroups[I].FStartPBuf := LCapture.StartPBuf;
-    AGroups[I].FSuccess := LCapture.Success;
-  end;
-end;
-
-procedure TREGroupStack.Pop(var AGroups: TGroupCollection);
-var
-  I: Integer;
-  LCapture: PRECaptureRec;
-  LCollection: TList;
-begin
-  if FItems.Count = 0 then
-    Exit;
-
-  LCollection := TList(FItems[FCurIndex - 1]);
-
-  for I := 0 to LCollection.Count - 1 do
-  begin
-    LCapture := LCollection[I];
-    AGroups[I].FStartP := LCapture.StartP;
-    AGroups[I].FEndP := LCapture.EndP;
-    AGroups[I].FStartPBuf := LCapture.StartPBuf;
-    AGroups[I].FSuccess := LCapture.Success;
-  end;
-  Dec(FCurIndex);
-end;
-
-procedure TREGroupStack.Push(AGroups: TGroupCollection);
-var
-  I: Integer;
-  LCapture: PRECaptureRec;
-  LCollection: TList;
-begin
-  if FCurIndex > FItems.Count - 1 then
-  begin
-    LCollection := TList.Create;
-
-    for I := 0 to AGroups.Count - 1 do
-    begin
-      New(LCapture);
-
-      LCapture.StartP := AGroups[I].StartP;
-      LCapture.StartPBuf := AGroups[I].StartPBuf;
-      LCapture.EndP := AGroups[I].EndP;
-      LCapture.Success := AGroups[I].Success;
-
-      LCollection.Add(LCapture);
-    end;
-
-    FItems.Add(LCollection);
-  end
-  else
-  begin
-    LCollection := TObjectList(FItems[FCurIndex]);
-
-    for I := 0 to AGroups.Count - 1 do
-    begin
-      LCapture := LCollection[I];
-
-      LCapture.StartP := AGroups[I].StartP;
-      LCapture.StartPBuf := AGroups[I].StartPBuf;
-      LCapture.EndP := AGroups[I].EndP;
-      LCapture.Success := AGroups[I].Success;
-    end;
-  end;
-  Inc(FCurIndex);
-end;
-
-procedure TREGroupStack.Reset;
-begin
-  FCurIndex := 0;
-end;
-
 { TREBackTrackStack }
 
 procedure TREBackTrackStack.Clear;
@@ -13449,11 +13228,7 @@ ReStart:
 
   if FRegExp.FHasGoSub and
       (FRegExp.FSubStack.Index <> LStat.NestLevel) then
-  begin
     FRegExp.FSubStack.Index := LStat.NestLevel;
-//@    FRegExp.FGroupStack.Pop(FRegExp.FGroups, LStat.NestLevel);
-//@    FRegExp.FLoopState.SetLoopIndex(LStat.NestLevel);
-  end;
 
 {$IFDEF SKREGEXP_DEBUG}
   if FRegExp.FShowMatchProcess and FRegExp.ShowBackTrackStack then
@@ -13685,7 +13460,7 @@ begin
           if LCap <> nil then
           begin
             Dispose(LCap);
-            LCap := nil;
+            LStat.Captures[J] := nil;
           end;
         end;
         FreeAndNil(LStat.Captures);
@@ -14443,7 +14218,6 @@ begin
   if FRegExp.FHasGoSub then
   begin
     FRegExp.FSubStack.Reset;
-    FRegExp.FGroupStack.Reset;
   end;
   FLoopState.Reset;
   FBackTrackStack.Clear;
@@ -15070,7 +14844,6 @@ begin
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
-//              FRegExp.FGroupStack.Pop(FGroups);
               FSubStack.Pop(FGroups, FLoopState);
             end
             else
@@ -15152,8 +14925,6 @@ begin
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
-//              FRegExp.FGroupStack.Pop(FGroups);
-//@              FLoopState.Pop;
               FSubStack.Pop(FGroups, FLoopState);
             end
             else
@@ -15204,8 +14975,6 @@ begin
 
               Stack.Push(nil, nil, False);
               FSubStack.Push(Index, EndCode, NextCode, FGroups, FLoopState);
-//@              FRegExp.FGroupStack.Push(FGroups);
-//@              FLoopState.Push;
               NFACode := EntryCode;
             end
             else
@@ -15215,8 +14984,6 @@ begin
 
               FSubStack.Push(Index, EndCode,
                 FStateList[NFACode.TransitTo], FGroups, FLoopState);
-//@              FRegExp.FGroupStack.Push(FGroups);
-//@              FLoopState.Push;
               NFACode := EntryCode;
             end;
           end;
@@ -15986,7 +15753,6 @@ begin
     ClearBinCodeList;
     FGroups.Clear;
     FSubStack.Clear;
-    FGroupStack.Clear;
 
     Parser := TREParser.Create(Self, FExpression);
     try
@@ -16029,11 +15795,6 @@ begin
   FBinCodeList := TList.Create;
   FStateList := TList.Create;
   FVerbNames := TREStringList.Create;
-{$IFDEF SKREGEXP_DEBUG}
-  FGroupStack := TREGroupStack.Create(Self);
-{$ELSE SKREGEXP_DEBUG}
-  FGroupStack := TREGroupStack.Create;
-{$ENDIF SKREGEXP_DEBUG}
   FSubStack := TREGoSubStack.Create(Self);
   FOptimizeData := TREOptimizeDataCollection.Create;
   FLoopState := TRELoopStateList.Create;
@@ -16079,9 +15840,9 @@ begin
   ADest.Add('--------------------------');
   ADest.Add(DumpMatchProcess);
 
-  ADest.Add('Group match history');
-  ADest.Add('---------------------------');
-  ADest.Add(FGroupStack.GetDebugStr);
+//  ADest.Add('Group match history');
+//  ADest.Add('---------------------------');
+//  ADest.Add(FGroupStack.GetDebugStr);
 
   ADest.Add('Match result');
   ADest.Add('---------------------------');
@@ -16407,7 +16168,6 @@ begin
 
   FLoopState.Free;
   FOptimizeData.Free;
-  FGroupStack.Free;
   FSubStack.Free;
   FVerbNames.Free;
   FMatchEngine.Free;
