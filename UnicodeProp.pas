@@ -17,13 +17,13 @@
 
   The Original Code is UnicodeProp.pas(for SkRegExp Library).
 
-  The Initial Developer of the Original Code is Komiya Shuichi.
+  The Initial Developer of the Original Code is Komiya Shuuichi.
 
   E-mail: shu AT komish DOT jp
   URL:    http://skregexp.komish.com/
 
   Portions created by Komiya Shuichi are
-  Copyright (C) 2007-2015 Komiya Shuichi. All Rights Reserved.
+  Copyright (C) 2007-2015 Komiya Shuuichi. All Rights Reserved.
 
 *)
 

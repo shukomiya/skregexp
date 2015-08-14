@@ -17,12 +17,12 @@
 
   The Original Code is SkRegExpW.pas(for SkRegExp Library).
 
-  The Initial Developer of the Original Code is Komiya Shuichi.
+  The Initial Developer of the Original Code is Komiya Shuuichi.
 
   E-mail: shu AT komish DOT jp
   URL:    http://skregexp.komish.com/
 
-  Portions created by Komiya Shuichi are
+  Portions created by Komiya Shuuichi are
   Copyright (C) 2007-2015 Komiya Shuichi. All Rights Reserved.
 
 *)
@@ -1146,35 +1146,17 @@ type
 {$ENDIF}
   end;
 
-  TRELoopStateRec = record
-    Step: Integer;
-  end;
-  PRELoopStateRec = ^TRELoopStateRec;
-
   TRELoopStateItem = class
   private
     FPrevP: PWideChar;
-    FState: TList;
-    FCurIndex: Integer;
+    FStep: Integer;
     FNFACode: TRENFAState;
     FMatchP: PWideChar;
-    function GetState(Index: Integer): PRELoopStateRec;
-    function GetStep: Integer;
-    function GetNestLevel: Integer;
-    procedure SetNestLevel(const Value: Integer);
-    procedure SetStep(const Value: Integer);
-  protected
-    procedure InternalClear;
   public
-    constructor Create;
-    destructor Destroy; override;
     procedure Clear;
     procedure Up; inline;
-    procedure Push;
-    procedure Pop;
     procedure Reset;
-    property NestLevel: Integer read GetNestLevel write SetNestLevel;
-    property Step: Integer read GetStep write SetStep;
+    property Step: Integer read FStep write FStep;
     property PrevP: PWideChar read FPrevP write FPrevP;
     property NFACode: TRENFAState read FNFACode write FNFACode;
     property MatchP: PWideChar read FMatchP write FMatchP;
@@ -1186,10 +1168,7 @@ type
     procedure SetItem(Index: Integer; const Value: TRELoopStateItem);
   public
     procedure Clear; override;
-    procedure Push;
-    procedure Pop;
     procedure Reset;
-    procedure SetLoopIndex(const Index: Integer);
     function Add(Value: TRELoopStateItem): Integer;
     property Items[Index: Integer]: TRELoopStateItem read GetItem write SetItem; default;
   end;
@@ -1447,7 +1426,10 @@ type
   TREGoSubStateRec = record
     Index: Integer;
     EndCode, NextCode: TRENFAState;
-    PrevP: PWideChar;
+    Captures: TList;
+    LoopStateCount: Integer;
+    StepArray: array of Integer;
+    PrevPArray: array of PWideChar;
   end;
   PREGoSubStateRec = ^TREGoSubStateRec;
 
@@ -1467,8 +1449,9 @@ type
     procedure Clear;
     function Count: Integer; inline;
     function Peek: PREGoSubStateRec;
-    procedure Push(AGroupIndex: Integer; EndCode, NextCode: TRENFAState);
-    procedure Pop;
+    procedure Push(AGroupIndex: Integer; EndCode, NextCode: TRENFAState;
+      AGroups: TGroupCollection; ALoopState: TRELoopStateList);
+    procedure Pop(var RGroups: TGroupCollection; var RLoopState: TRELoopStateList);
     procedure Reset;
     property Index: Integer read GetIndex write SetIndex;
     property GroupIndex: Integer read GetGroupIndex;
@@ -12575,113 +12558,21 @@ end;
 { TRELoopState }
 
 procedure TRELoopStateItem.Clear;
-var
-  P: PRELoopStateRec;
 begin
-  InternalClear;
-
-  New(P);
-  P.Step := 0;
-  FState.Add(P);
+  FStep := 0;
   FPrevP := nil;
   FMatchP := nil;
-end;
-
-constructor TRELoopStateItem.Create;
-var
-  P: PRELoopStateRec;
-begin
-  inherited;
-  FState := TList.Create;
-
-  New(P);
-  P.Step := 0;
-  FState.Add(P);
-end;
-
-destructor TRELoopStateItem.Destroy;
-begin
-  InternalClear;
-  FState.Free;
-  inherited;
-end;
-
-function TRELoopStateItem.GetNestLevel: Integer;
-begin
-  Result := FCurIndex;
-end;
-
-function TRELoopStateItem.GetState(Index: Integer): PRELoopStateRec;
-begin
-  Result := FState[Index];
-end;
-
-function TRELoopStateItem.GetStep: Integer;
-begin
-  Result := GetState(FCurIndex).Step;
-end;
-
-procedure TRELoopStateItem.InternalClear;
-var
-  I: Integer;
-  P: PRELoopStateRec;
-begin
-  for I := FState.Count - 1 downto 0 do
-  begin
-    P := FState[I];
-    if P <> nil then
-      Dispose(P);
-  end;
-  FState.Clear;
-
-  FCurIndex := 0;
-end;
-
-procedure TRELoopStateItem.Pop;
-begin
-  Dec(FCurIndex);
-end;
-
-procedure TRELoopStateItem.Push;
-var
-  Source, Dest: PRELoopStateRec;
-begin
-  Inc(FCurIndex);
-
-  if FCurIndex = FState.Count then
-  begin
-    New(Dest);
-    Dest.Step := 0;
-    FState.Add(Dest);
-  end
-  else
-  begin
-    Source := FState[FCurIndex];
-    Source.Step := 0;
-  end;
 end;
 
 procedure TRELoopStateItem.Reset;
 begin
-  FCurIndex := 0;
-  FPrevP := nil;
-  GetState(FCurIndex).Step := 0;
+  FStep := 0;
   FMatchP := nil;
-end;
-
-procedure TRELoopStateItem.SetNestLevel(const Value: Integer);
-begin
-  FCurIndex := Value;
-end;
-
-procedure TRELoopStateItem.SetStep(const Value: Integer);
-begin
-  GetState(FCurIndex).Step := Value;
 end;
 
 procedure TRELoopStateItem.Up;
 begin
-  Inc(GetState(FCurIndex).Step);
+  Inc(FStep);
 end;
 
 { TRELoopStateList }
@@ -12705,22 +12596,6 @@ begin
   Result := inherited GetItem(Index) as TRELoopStateItem;
 end;
 
-procedure TRELoopStateList.Pop;
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-    GetItem(I).Pop;
-end;
-
-procedure TRELoopStateList.Push;
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-    GetItem(I).Push;
-end;
-
 procedure TRELoopStateList.Reset;
 var
   I: Integer;
@@ -12732,14 +12607,6 @@ end;
 procedure TRELoopStateList.SetItem(Index: Integer; const Value: TRELoopStateItem);
 begin
   inherited SetItem(Index, Value);
-end;
-
-procedure TRELoopStateList.SetLoopIndex(const Index: Integer);
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-    GetItem(I).NestLevel := Index + 1;
 end;
 
 { TREBranchStateStack }
@@ -13584,8 +13451,8 @@ ReStart:
       (FRegExp.FSubStack.Index <> LStat.NestLevel) then
   begin
     FRegExp.FSubStack.Index := LStat.NestLevel;
-    FRegExp.FGroupStack.Pop(FRegExp.FGroups, LStat.NestLevel);
-    FRegExp.FLoopState.SetLoopIndex(LStat.NestLevel);
+//@    FRegExp.FGroupStack.Pop(FRegExp.FGroups, LStat.NestLevel);
+//@    FRegExp.FLoopState.SetLoopIndex(LStat.NestLevel);
   end;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -13801,14 +13668,31 @@ end;
 
 procedure TREGoSubStack.Clear;
 var
-  I: Integer;
+  I, J: Integer;
   LStat: PREGoSubStateRec;
+  LCap: PRECaptureRec;
 begin
   for I := FState.Count - 1 downto 0 do
   begin
     LStat := FState[I];
     if LStat <> nil then
     begin
+      if Assigned(LStat.Captures) then
+      begin
+        for J := 0 to LStat.Captures.Count - 1 do
+        begin
+          LCap := LStat.Captures[J];
+          if LCap <> nil then
+          begin
+            Dispose(LCap);
+            LCap := nil;
+          end;
+        end;
+        FreeAndNil(LStat.Captures);
+      end;
+      SetLength(LStat.PrevPArray, 0);
+      SetLength(LStat.StepArray, 0);
+
       Dispose(LStat);
       FState[I] := nil;
     end;
@@ -13860,32 +13744,90 @@ begin
   Result := FState[FCurIndex - 1];
 end;
 
-procedure TREGoSubStack.Pop;
+procedure TREGoSubStack.Pop(var RGroups: TGroupCollection;
+  var RLoopState: TRELoopStateList);
+var
+  I: Integer;
+  P: PREGoSubStateRec;
+  Cap: PRECaptureRec;
 begin
   Dec(FCurIndex);
+  P := FState[FCurIndex];
+  for I := 0 to P.Captures.Count - 1 do
+  begin
+    Cap := P.Captures[I];
+    RGroups[I].FStartP := Cap.StartP;
+    RGroups[I].FEndP := Cap.EndP;
+    RGroups[I].FStartPBuf := Cap.StartPBuf;
+    RGroups[I].FSuccess := Cap.Success;
+  end;
+
+  for I := 0 to P.LoopStateCount - 1 do
+  begin
+    RLoopState[I].Step := P.StepArray[I];
+    RLoopState[I].PrevP := P.PrevPArray[I]
+  end;
 end;
 
 procedure TREGoSubStack.Push(AGroupIndex: Integer;
-  EndCode, NextCode: TRENFAState);
+  EndCode, NextCode: TRENFAState; AGroups: TGroupCollection;
+  ALoopState: TRELoopStateList);
 var
-  LStat, LStatSub: PREGoSubStateRec;
+  I: Integer;
+  LStat: PREGoSubStateRec;
+  LCap: PRECaptureRec;
 begin
-  New(LStat);
-
-  LStat.Index := AGroupIndex;
-  LStat.EndCode := EndCode;
-  LStat.NextCode := NextCode;
-  LStat.PrevP := nil;
-
   if FCurIndex > FState.Count - 1 then
+  begin
+    New(LStat);
+
+    LStat.Index := AGroupIndex;
+    LStat.EndCode := EndCode;
+    LStat.NextCode := NextCode;
+    LStat.Captures := TList.Create;
+    for I := 0 to AGroups.Count - 1 do
+    begin
+      New(LCap);
+      LCap.StartP := AGroups[I].FStartP;
+      LCap.EndP := AGroups[I].FEndP;
+      LCap.StartPBuf := AGroups[I].FStartPBuf;
+      LCap.Success := AGroups[I].FSuccess;
+      LStat.Captures.Add(LCap);
+    end;
+    LStat.LoopStateCount := ALoopState.Count;
+
+    SetLength(LStat.PrevPArray, LStat.LoopStateCount);
+    SetLength(LStat.StepArray, LStat.LoopStateCount);
+    for I := 0 to ALoopState.Count - 1 do
+    begin
+      LStat.PrevPArray[I] := ALoopState[I].PrevP;
+      LStat.StepArray[I] := ALoopState[I].Step;
+    end;
+
     FState.Add(LStat)
+  end
   else
   begin
-    LStatSub := FState[FCurIndex];
-    if LStatSub <> nil then
-      Dispose(LStatSub);
+    LStat := FState[FCurIndex];
 
-    FState[FCurIndex] := LStat;
+    LStat.Index := AGroupIndex;
+    LStat.EndCode := EndCode;
+    LStat.NextCode := NextCode;
+
+    for I := 0 to AGroups.Count - 1 do
+    begin
+      LCap := LStat.Captures[I];
+      LCap.StartP := AGroups[I].FStartP;
+      LCap.EndP := AGroups[I].FEndP;
+      LCap.StartPBuf := AGroups[I].FStartPBuf;
+      LCap.Success := AGroups[I].FSuccess;
+    end;
+
+    for I := 0 to LStat.LoopStateCount - 1 do
+    begin
+      LStat.PrevPArray[I] := ALoopState[I].PrevP;
+      LStat.StepArray[I] := ALoopState[I].Step;
+    end;
   end;
 
   Inc(FCurIndex);
@@ -15128,8 +15070,8 @@ begin
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
-              FRegExp.FGroupStack.Pop(FGroups);
-              FSubStack.Pop;
+//              FRegExp.FGroupStack.Pop(FGroups);
+              FSubStack.Pop(FGroups, FLoopState);
             end
             else
             begin
@@ -15210,9 +15152,9 @@ begin
               (FSubStack[FSubStack.Count - 1].EndCode = NFACode) then
             begin
               NFACode := FSubStack[FSubStack.Count - 1].NextCode;
-              FRegExp.FGroupStack.Pop(FGroups);
-              FLoopState.Pop;
-              FSubStack.Pop;
+//              FRegExp.FGroupStack.Pop(FGroups);
+//@              FLoopState.Pop;
+              FSubStack.Pop(FGroups, FLoopState);
             end
             else
             begin
@@ -15261,9 +15203,9 @@ begin
               EndCode := FGroups[Index].GroupEnd;
 
               Stack.Push(nil, nil, False);
-              FSubStack.Push(Index, EndCode, NextCode);
-              FRegExp.FGroupStack.Push(FGroups);
-              FLoopState.Push;
+              FSubStack.Push(Index, EndCode, NextCode, FGroups, FLoopState);
+//@              FRegExp.FGroupStack.Push(FGroups);
+//@              FLoopState.Push;
               NFACode := EntryCode;
             end
             else
@@ -15272,9 +15214,9 @@ begin
               EndCode := FStateList[FRegExp.FExitState];
 
               FSubStack.Push(Index, EndCode,
-                FStateList[NFACode.TransitTo]);
-              FRegExp.FGroupStack.Push(FGroups);
-              FLoopState.Push;
+                FStateList[NFACode.TransitTo], FGroups, FLoopState);
+//@              FRegExp.FGroupStack.Push(FGroups);
+//@              FLoopState.Push;
               NFACode := EntryCode;
             end;
           end;
@@ -16043,12 +15985,8 @@ begin
     ClearCodeList;
     ClearBinCodeList;
     FGroups.Clear;
-    FLoopState.Clear;
-    if FHasGoSub then
-    begin
-      FSubStack.Clear;
-      FGroupStack.Clear;
-    end;
+    FSubStack.Clear;
+    FGroupStack.Clear;
 
     Parser := TREParser.Create(Self, FExpression);
     try
