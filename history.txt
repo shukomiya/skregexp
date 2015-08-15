@@ -8,6 +8,16 @@
             determined at compile time.
        Del) Remove TREParser.Factor within the function CheckEmptyLoop.
        Add) To override the IsOverlap method to anchor elements (such as class of TREBoudaryCode).
+       Del) Remove TREGroupStack class.
+            This feature has been moved to TREGoSubStack class.
+       Mod) Reviewed the structure of TRELoopStateItem class.
+            The previous version had a stack for recursive calls inside
+            but I was moved to TREGoSubStack class.
+       New) Introduced PRECaptureRec as record type that holds the capture buffer
+            in TREBackTrackStack class.
+            The process was heavy because it have been using TGroup class in the previous version.
+       New) Added the information of the capture buffer and TRELoopStateList in PREGoSubStateRec.
+
    3.1.8 2015/8/10
        Add) Add {$HIGHCHARUNICODE ON} to the conditions defined.
        Del) Delete a condition defined {$IF CompilerVersion> = 16.0}.

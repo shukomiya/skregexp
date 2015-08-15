@@ -13076,7 +13076,7 @@ var
   I: Integer;
   MatchRecList: TList;
   LStat: PREBackTrackStateRec;
-  P: TGroup;
+  P: PRECaptureRec;
   J: Integer;
 begin
   for I := FCount downto 0 do
@@ -13094,8 +13094,8 @@ begin
       for J := MatchRecList.Count - 1 downto 0 do
       begin
         P := MatchRecList[J];
-        if Assigned(P) then
-          P.Free;
+        if P <> nil then
+          Dispose(P);
       end;
       MatchRecList.Free;
       FGroup^[I] := nil;
@@ -13146,7 +13146,7 @@ procedure TREBackTrackStack.Pop;
 var
   I: Integer;
   MatchRecList: TList;
-  P: TGroup;
+  P: PRECaptureRec;
   LStat: PREBackTrackStateRec;
 {$IFDEF SKREGEXP_DEBUG}
   AStr: PWideChar;
@@ -13189,10 +13189,10 @@ begin
     begin
       P := MatchRecList[I];
       FRegExp.FGroups[I + 1].FStartP := P.StartP;
-      FRegExp.FGroups[I + 1].FStartPBuf := P.FStartPBuf;
-      FRegExp.FGroups[I + 1].FEndP := P.FEndP;
-      FRegExp.FGroups[I + 1].FSuccess := P.FSuccess;
-      P.Free;
+      FRegExp.FGroups[I + 1].FStartPBuf := P.StartPBuf;
+      FRegExp.FGroups[I + 1].FEndP := P.EndP;
+      FRegExp.FGroups[I + 1].FSuccess := P.Success;
+      Dispose(P);
     end;
     MatchRecList.Free;
   end;
@@ -13205,7 +13205,7 @@ label
 var
   I: Integer;
   MatchRecList: TList;
-  P: TGroup;
+  P: PRECaptureRec;
   LStat: PREBackTrackStateRec;
   IsNilStr: Boolean;
 {$IFDEF SKREGEXP_DEBUG}
@@ -13257,11 +13257,11 @@ ReStart:
     for I := 0 to MatchRecList.Count - 1 do
     begin
       P := MatchRecList[I];
-      FRegExp.FGroups[I + 1].FStartP := P.FStartP;
-      FRegExp.FGroups[I + 1].FStartPBuf := P.FStartPBuf;
+      FRegExp.FGroups[I + 1].FStartP := P.StartP;
+      FRegExp.FGroups[I + 1].FStartPBuf := P.StartPBuf;
       FRegExp.FGroups[I + 1].FEndP := P.EndP;
-      FRegExp.FGroups[I + 1].FSuccess := P.FSuccess;
-      P.Free;
+      FRegExp.FGroups[I + 1].FSuccess := P.Success;
+      Dispose(P);
     end;
     MatchRecList.Free;
   end;
@@ -13300,7 +13300,7 @@ var
   I: Integer;
   MatchRecList: TList;
   LStat: PREBackTrackStateRec;
-  P: TGroup;
+  P: PRECaptureRec;
 {$IFDEF SKREGEXP_DEBUG}
   S: REString;
 {$ENDIF SKREGEXP_DEBUG}
@@ -13325,11 +13325,11 @@ begin
     MatchRecList := TList.Create;
     for I := 1 to FRegExp.FGroups.Count - 1 do
     begin
-      P := TGroup.Create(FRegExp);
-      P.FStartP := FRegExp.FGroups[I].StartP;
-      P.FStartPBuf := FRegExp.FGroups[I].StartPBuf;
-      P.FEndP := FRegExp.FGroups[I].EndP;
-      P.FSuccess := FRegExp.FGroups[I].Success;
+      New(P);
+      P.StartP := FRegExp.FGroups[I].StartP;
+      P.StartPBuf := FRegExp.FGroups[I].StartPBuf;
+      P.EndP := FRegExp.FGroups[I].EndP;
+      P.Success := FRegExp.FGroups[I].Success;
       MatchRecList.Add(P);
     end;
     FGroup^[FCount] := MatchRecList;
