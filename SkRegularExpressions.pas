@@ -1,14 +1,14 @@
 ﻿(* ***************************************************************************
   TRegEx wrapper of SkRegExp.
 
-  version 1.1
+  version 2.1
 
-  for Delphi 2006 or later, SkRegExp version 1.1.10 later.
+  for Delphi 2006 or later, SkRegExp version 4.x later.
 
   usage: see TRegEx in Delphi XE Help.
   **************************************************************************** *)
 (*
-  Copyright (c) 2010-2012 Shuichi Komiya <shu AT k DOT email DOT ne DOT JP>
+  Copyright (c) 2010-2015 Shuuichi Komiya <shu AT komish DOT jp>
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
@@ -237,18 +237,20 @@ begin
   Result := TScopeExitNotifier.Create(ARegEx);
 end;
 
-procedure ConvertOptions(ARegExp: TSkRegExp; AOptions: TRegExOptions);
+function ConvertOptions(AOptions: TRegExOptions): TREOptions;
 begin
+  Result := [];
+
   if roIgnoreCase in AOptions then
-    ARegExp.IgnoreCase := True;
+    Result := Result + [TREOption.roIgnoreCase];
   if roMultiLine in AOptions then
-    ARegExp.MultiLine := True;
+    Result := Result + [TREOption.roMultiLine];
   if roSingleLine in AOptions then
-    ARegExp.SingleLine := True;
+    Result := Result + [TREOption.roSingleLine];
   if roExplicitCapture in AOptions then
-    ARegExp.NamedGroupOnly := True;
+    Result := Result + [TREOption.roNamedGroupOnly];
   if roIgnorePatternSpace in AOptions then
-    ARegExp.Extended := True;
+    Result := Result + [TREOption.roExtended];
 end;
 
 { TGroup }
@@ -385,7 +387,7 @@ begin
   FNotifier := ANotifier;
 
   FGroup := TGroup.Create(AValue, AIndex, ALength, '');
-  FGroups := TGroupCollection.Create(ARegEx, AValue, AIndex, ALength, ANotifier);
+  FGroups := TGroupCollection.Create(FRegExp, AValue, AIndex, ALength, ANotifier);
 end;
 
 function TMatch.GetGroups: TGroupCollection;
@@ -658,7 +660,7 @@ begin
   Index := 0;
 
   ARegEx.InputString := Input;
-  ConvertOptions(ARegEx, AOptions);
+  ARegEx.Options := ConvertOptions(AOptions);
 
   if ARegEx.ExecPos(StartPos) then
   begin
@@ -695,9 +697,7 @@ end;
 
 constructor TRegEx.Create(const Pattern: REString; Options: TRegExOptions);
 begin
-  FRegExp := TSkRegExp.Create;
-  FRegExp.Expression := Pattern;
-  ConvertOptions(FRegExp, Options);
+  FRegExp := TSkRegExp.Create(Pattern, ConvertOptions(Options));
   if roCompiled in Options then
     FRegExp.Compile;
   FNotifier := MakeScopeExitNotifier(FRegExp);

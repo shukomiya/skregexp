@@ -15,7 +15,9 @@
         ・新規）TREBackTrackStackクラスでキャプチャバッファを保持するレコード型としてPRECaptureRecを導入。
                 前のバージョンではTGroupクラスを使っていたため処理が重かった。
         ・新規）PREGoSubStateRecにキャプチャバッファとTRELoopStateListの情報を追加した。
-
+        ・更新）TREBackTrackStack を効率化した。
+                前のバージョンでは１回マッチ試行をする度にスタックで使ったメモリを解放していた。
+                マッチ中は確保したメモリをそのまま使うことにした。
    3.1.8 2015/8/1
         ・追加）条件定義に {$HIGHCHARUNICODE ON} を追加。
         ・削除）条件定義 {$IF CompilerVersion >= 16.0} を削除。

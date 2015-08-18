@@ -17,7 +17,8 @@
             in TREBackTrackStack class.
             The process was heavy because it have been using TGroup class in the previous version.
        New) Added the information of the capture buffer and TRELoopStateList in PREGoSubStateRec.
-
+       Mod) The efficient use of memory in TREBackTrackStack.
+            The previous version has been released the memory every time it try to match once.
    3.1.8 2015/8/10
        Add) Add {$HIGHCHARUNICODE ON} to the conditions defined.
        Del) Delete a condition defined {$IF CompilerVersion> = 16.0}.

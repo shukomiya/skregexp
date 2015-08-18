@@ -1098,7 +1098,6 @@ type
 
   TREOptimizeDataList = class(TList)
   private
-    IsWork: Boolean;
     function Get(Index: Integer): TREOptimizeData;
     procedure Put(Index: Integer; const Value: TREOptimizeData);
   public
@@ -1366,6 +1365,7 @@ type
   TREBackTrackStateRec = record
     NFACode: TRENFAState;
     Str: PWideChar;
+    HasGroup: Boolean;
     NestLevel: Integer;
   end;
   PREBackTrackStateRec = ^TREBackTrackStateRec;
@@ -1377,7 +1377,7 @@ type
   TREBackTrackStack = class
   private
     FRegExp: TSkRegExp;
-    FCount, FSize: Integer;
+    FCurIndex, FCount, FSize: Integer;
     FStat, FGroup: PPointerList;
     FCheckMatchExplosion: Boolean;
     function GetIndex: Integer; inline;
@@ -1396,6 +1396,7 @@ type
     procedure Remove(const AIndex: Integer); overload;
     procedure Remove(BranchCode: TRENFAState); overload;
     procedure RemoveGoSub(const AGoSubIndex: Integer);
+    procedure Reset;
     property Index: Integer read GetIndex;
   end;
 
@@ -11102,7 +11103,6 @@ end;
 
 function TREOptimizeDataList.Add(Item: TREOptimizeData): Integer;
 begin
-  IsWork := False;
   Result := inherited Add(Item);
 end;
 
@@ -11544,9 +11544,11 @@ begin
               State1 := GetNumber;
 
               SubOption := TREAnyCharCode(Left).FOptions;
-              if not(roSingleLine in SubOption) then
-                Include(SubOption, roMultiLine);
-              SubCode := TRELineHeadCode.Create(FRegExp, SubOption);
+              if not (roSingleLine in SubOption) then
+//                Include(SubOption, roMultiLine);
+                SubCode := TRELineHeadCode.Create(FRegExp, SubOption)
+              else
+                SubCode := TRETextHeadCode.Create(FRegExp, SubOption);
 
               FRegExp.FCodeList.Add(SubCode);
 
@@ -13079,7 +13081,7 @@ var
   P: PRECaptureRec;
   J: Integer;
 begin
-  for I := FCount downto 0 do
+  for I := FCount - 1 downto 0 do
   begin
     LStat := FStat^[I];
     if LStat <> nil then
@@ -13102,12 +13104,13 @@ begin
     end;
   end;
 
-  FCount := -1;
+  FCurIndex := -1;
+  FCount := 0;
 end;
 
 function TREBackTrackStack.Count: Integer;
 begin
-  Result := FCount + 1;
+  Result := FCurIndex + 1;
 end;
 
 constructor TREBackTrackStack.Create(ARegExp: TSkRegExp;
@@ -13118,7 +13121,7 @@ begin
   FSize := CONST_BackTrack_Stack_Default_Size;
   GetMem(FStat, FSize * Sizeof(Pointer));
   GetMem(FGroup, FSize * Sizeof(Pointer));
-  FCount := -1;
+  FCurIndex := -1;
   FCheckMatchExplosion := ACheckMatchExplosion;
 end;
 
@@ -13133,20 +13136,17 @@ end;
 
 function TREBackTrackStack.Peek: TRENFAState;
 begin
-  if FCount = -1 then
+  if FCurIndex = -1 then
   begin
     Result := nil;
     Exit;
   end;
 
-  Result := PREBackTrackStateRec(FStat^[FCount]).NFACode;
+  Result := PREBackTrackStateRec(FStat^[FCurIndex]).NFACode;
 end;
 
 procedure TREBackTrackStack.Pop;
 var
-  I: Integer;
-  MatchRecList: TList;
-  P: PRECaptureRec;
   LStat: PREBackTrackStateRec;
 {$IFDEF SKREGEXP_DEBUG}
   AStr: PWideChar;
@@ -13154,12 +13154,12 @@ var
   T: REString;
 {$ENDIF SKREGEXP_DEBUG}
 begin
-  if FCount = -1 then
+  if FCurIndex = -1 then
     Exit;
 
-  LStat := FStat^[FCount];
-
 {$IFDEF SKREGEXP_DEBUG}
+  LStat := FStat^[FCurIndex];
+
   if FRegExp.FShowMatchProcess and FRegExp.ShowBackTrackStack then
   begin
     AStr := LStat.Str;
@@ -13179,24 +13179,7 @@ begin
   end;
 {$ENDIF SKREGEXP_DEBUG}
 
-  Dispose(LStat);
-  FStat^[FCount] := nil;
-
-  if FGroup^[FCount] <> nil then
-  begin
-    MatchRecList := FGroup^[FCount];
-    for I := 0 to MatchRecList.Count - 1 do
-    begin
-      P := MatchRecList[I];
-      FRegExp.FGroups[I + 1].FStartP := P.StartP;
-      FRegExp.FGroups[I + 1].FStartPBuf := P.StartPBuf;
-      FRegExp.FGroups[I + 1].FEndP := P.EndP;
-      FRegExp.FGroups[I + 1].FSuccess := P.Success;
-      Dispose(P);
-    end;
-    MatchRecList.Free;
-  end;
-  Dec(FCount);
+  Dec(FCurIndex);
 end;
 
 procedure TREBackTrackStack.Pop(var NFACode: TRENFAState; var AStr: PWideChar);
@@ -13213,13 +13196,13 @@ var
 {$ENDIF SKREGEXP_DEBUG}
 begin
 ReStart:
-  if FCount = -1 then
+  if FCurIndex = -1 then
   begin
     NFACode := nil;
     Exit;
   end;
 
-  LStat := FStat[FCount];
+  LStat := FStat[FCurIndex];
 
   NFACode := LStat.NFACode;
   IsNilStr := (NFACode = nil) and (LStat.Str = nil);
@@ -13248,12 +13231,9 @@ ReStart:
   end;
 {$ENDIF SKREGEXP_DEBUG}
 
-  Dispose(LStat);
-  FStat^[FCount] := nil;
-
-  if FGroup^[FCount] <> nil then
+  if LStat.HasGroup then
   begin
-    MatchRecList := FGroup^[FCount];
+    MatchRecList := FGroup^[FCurIndex];
     for I := 0 to MatchRecList.Count - 1 do
     begin
       P := MatchRecList[I];
@@ -13261,20 +13241,18 @@ ReStart:
       FRegExp.FGroups[I + 1].FStartPBuf := P.StartPBuf;
       FRegExp.FGroups[I + 1].FEndP := P.EndP;
       FRegExp.FGroups[I + 1].FSuccess := P.Success;
-      Dispose(P);
     end;
-    MatchRecList.Free;
   end;
 
-  Dec(FCount);
+  Dec(FCurIndex);
 
   if (NFACode = nil) then
   begin
     if IsNilStr then
     begin
-      if FCount = -1 then
+      if FCurIndex = -1 then
         Exit;
-      LStat := FStat[FCount];
+      LStat := FStat[FCurIndex];
       //GoSub 用のスタックが２回続いたら抜ける
       if (LStat.NFACode = nil) and (LStat.Str = nil) then
         Exit;
@@ -13305,12 +13283,64 @@ var
   S: REString;
 {$ENDIF SKREGEXP_DEBUG}
 begin
-  Inc(FCount);
+  Inc(FCurIndex);
 
-  if FCount >= FSize then
+  if FCurIndex >= FSize then
     Extend(FSize div 4);
 
-  New(LStat);
+  if FCurIndex > FCount - 1 then
+  begin
+    New(LStat);
+    FStat^[FCurIndex] := LStat;
+    MatchRecList := TList.Create;
+    FGroup^[FCurIndex] := MatchRecList;
+    LStat.HasGroup := IsPushGroup;
+
+    for I := 1 to FRegExp.FGroups.Count - 1 do
+    begin
+      New(P);
+      if IsPushGroup then
+      begin
+        P.StartP := FRegExp.FGroups[I].StartP;
+        P.StartPBuf := FRegExp.FGroups[I].StartPBuf;
+        P.EndP := FRegExp.FGroups[I].EndP;
+        P.Success := FRegExp.FGroups[I].Success;
+      end
+      else
+      begin
+        P.StartP := nil;
+        P.StartPBuf := nil;
+        P.EndP := nil;
+        P.Success := False;
+      end;
+      MatchRecList.Add(P);
+    end;
+  end
+  else
+  begin
+    LStat := FStat^[FCurIndex];
+    MatchRecList := FGroup^[FCurIndex];
+
+    for I := 1 to FRegExp.FGroups.Count - 1 do
+    begin
+      P := MatchRecList[I - 1];
+      if IsPushGroup then
+      begin
+        P.StartP := FRegExp.FGroups[I].StartP;
+        P.StartPBuf := FRegExp.FGroups[I].StartPBuf;
+        P.EndP := FRegExp.FGroups[I].EndP;
+        P.Success := FRegExp.FGroups[I].Success;
+      end
+      else
+      begin
+        P.StartP := nil;
+        P.StartPBuf := nil;
+        P.EndP := nil;
+        P.Success := False;
+      end;
+    end;
+  end;
+
   LStat.NFACode := NFACode;
   LStat.Str := AStr;
   if FRegExp.FHasGoSub then
@@ -13318,24 +13348,7 @@ begin
   else
     LStat.NestLevel := 0;
 
-  FStat^[FCount] := LStat;
-
-  if IsPushGroup then
-  begin
-    MatchRecList := TList.Create;
-    for I := 1 to FRegExp.FGroups.Count - 1 do
-    begin
-      New(P);
-      P.StartP := FRegExp.FGroups[I].StartP;
-      P.StartPBuf := FRegExp.FGroups[I].StartPBuf;
-      P.EndP := FRegExp.FGroups[I].EndP;
-      P.Success := FRegExp.FGroups[I].Success;
-      MatchRecList.Add(P);
-    end;
-    FGroup^[FCount] := MatchRecList;
-  end
-  else
-    FGroup^[FCount] := nil;
+  FCount := Max(FCurIndex + 1, FCount);
 
 {$IFDEF SKREGEXP_DEBUG}
   if FRegExp.FShowMatchProcess and FRegExp.ShowBackTrackStack then
@@ -13360,7 +13373,7 @@ procedure TREBackTrackStack.Remove(BranchCode: TRENFAState);
 var
   SubCode, NextCode: TRENFAState;
 begin
-  if FCount = -1 then
+  if FCurIndex = -1 then
     Exit;
 
 {$IFDEF SKREGEXP_DEBUG}
@@ -13396,14 +13409,19 @@ procedure TREBackTrackStack.RemoveGoSub(const AGoSubIndex: Integer);
 var
   Stat: PREBackTrackStateRec;
 begin
-  while FCount >= 0 do
+  while FCurIndex >= 0 do
   begin
-    Stat := FStat[FCount];
+    Stat := FStat[FCurIndex];
     if Stat.NestLevel = AGoSubIndex then
       Pop
     else
       Break;
   end;
+end;
+
+procedure TREBackTrackStack.Reset;
+begin
+  FCurIndex := -1;
 end;
 
 procedure TREBackTrackStack.Remove(const AIndex: Integer);
@@ -13413,7 +13431,7 @@ begin
     FRegExp.FMatchProcess.Add(#0009'Stack remove begin');
   try
 {$ENDIF SKREGEXP_DEBUG}
-    while AIndex < FCount do
+    while AIndex < FCurIndex do
       Pop;
 {$IFDEF SKREGEXP_DEBUG}
   finally
@@ -13436,7 +13454,7 @@ end;
 
 function TREBackTrackStack.GetIndex: Integer;
 begin
-  Result := FCount;
+  Result := FCurIndex;
 end;
 
 { TRERecursionStack }
@@ -14220,7 +14238,7 @@ begin
     FRegExp.FSubStack.Reset;
   end;
   FLoopState.Reset;
-  FBackTrackStack.Clear;
+  FBackTrackStack.Reset;
   FHasSkip := False;
   FSkipP := nil;
   FSkipIndex := -1;
@@ -14358,7 +14376,7 @@ begin
             else
               NFACode := nil;
           end;
-        nkNormal, nkAnchor, nkCallout: //nkAnchor
+        nkNormal, nkAnchor, nkCallout:
           begin
             if NFACode.Code.IsEqual(AStr, Len) then
             begin
@@ -15591,10 +15609,7 @@ begin
     end
     else if (FLeadCode[0].State.Code is TRELineHeadCode) then
     begin
-      if not(roMultiLine in (FLeadCode[0].State.Code as TRELineHeadCode).FOptions) then
-        FLeadCharMode := lcmTextTop
-      else
-        FLeadCharMode := lcmLineTop;
+      FLeadCharMode := lcmLineTop;
       Exit;
     end
     else if (FLeadCode[0].State.Code is TRETextHeadCode) then
@@ -15751,6 +15766,7 @@ begin
   begin
     ClearCodeList;
     ClearBinCodeList;
+    FMatchEngine.FBackTrackStack.Clear;
     FGroups.Clear;
     FSubStack.Clear;
 
@@ -17148,5 +17164,6 @@ begin
     R.Free;
   end;
 end;
+
 
 end.
