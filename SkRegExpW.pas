@@ -1106,6 +1106,8 @@ type
     property Items[Index: Integer]: TREOptimizeData read Get write Put; default;
   end;
 
+  TRENFAStateKind = (skNormal, skEntry, skExit);
+
   { MFA の状態を保持するクラス }
   TRENFAState = class
   private
@@ -1124,6 +1126,7 @@ type
     FExtendTo: Integer;
     FLoopIndex: Integer;
     FBranchIndex: Integer;
+    FStateKind: TRENFAStateKind;
   public
 {$IFDEF SKREGEXP_DEBUG}
     constructor Create(ARegExp: TSkRegExp);
@@ -1139,6 +1142,7 @@ type
     property ExtendTo: Integer read FExtendTo write FExtendTo;
     property BranchIndex: Integer read FBranchIndex write FBranchIndex;
     property LoopIndex: Integer read FLoopIndex write FLoopIndex;
+    property StateKind: TRENFAStateKind read FStateKind write FStateKind;
 {$IFDEF SKREGEXP_DEBUG}
     property Index: Integer read FIndex write FIndex;
     function GetString: REString;
@@ -1366,6 +1370,7 @@ type
     NFACode: TRENFAState;
     Str: PWideChar;
     HasGroup: Boolean;
+    Groups: TList;
     NestLevel: Integer;
   end;
   PREBackTrackStateRec = ^TREBackTrackStateRec;
@@ -1378,7 +1383,7 @@ type
   private
     FRegExp: TSkRegExp;
     FCurIndex, FCount, FSize: Integer;
-    FStat, FGroup: PPointerList;
+    FStat: PPointerList;
     FCheckMatchExplosion: Boolean;
     function GetIndex: Integer; inline;
   protected
@@ -1541,13 +1546,13 @@ type
     FStateList: TList;
     FEntryState, FExitState: Integer;
 
+    FUseReference: Boolean;
     FHasReference: Boolean;
     FHasGoSub: Boolean;
     FOnMatch: TNotifyEvent;
 
     FGlobalStartP, FGlobalEndP: PWideChar;
     FModified: Boolean;
-    FNoUseReference: Boolean;
     FSuccess: Boolean;
 
     FOnCallout: TCalloutEvent;
@@ -1626,6 +1631,8 @@ type
     { 正規表現を構文解析し、NFAを生成する }
     procedure Compile;
 
+    function CurrentMatch(const Text: REString; const AOffset: Integer): Boolean;
+
     procedure Error(const ErrorMes: REString);
 
     { 最初のマッチを実行する }
@@ -1635,6 +1642,7 @@ type
     { AOffsetの位置から AMaxLenght の範囲でマッチを実行する。AMaxLengthを指定した場合の動作に注意。ヘルプ参照 }
     function ExecPos(AOffset: Integer = 1; AMaxLength: Integer = 0): Boolean;
 
+    procedure GenerateGroup(AGroups: TGroupCollection);
     function Substitute(const ATemplate: REString): REString;
 
     function Replace(const Input, Replacement: REString; Count: Integer = 0;
@@ -10022,7 +10030,6 @@ begin
   FCurrentGroup := 0;
   FGroupLevel := 0;
   FHasRecursion := False;
-  FHasReference := False;
 
   FLex.GetToken;
   FRegExp.FCode := RegExpr;
@@ -10527,6 +10534,9 @@ begin
         Result := NewBinCode(opGoSub, nil, nil);
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
+        if not FHasReference then
+          FHasReference := True;
+
         FHasRecursion := not FHasRecursion and (LGroupNo = FGroupLevel);
 
         if not FHasGoSub then
@@ -10550,6 +10560,9 @@ begin
 
         (Result as TREBinCode).GroupName := FLex.GroupName;
         (Result as TREBinCode).GroupIndex := LGroupNo;
+
+        if not FHasReference then
+          FHasReference := True;
 
         if LGroupNo <> -1 then
           FHasRecursion := LGroupNo <= FGroupLevel
@@ -10635,6 +10648,9 @@ begin
 
         FLex.PopOptions;
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkInSubRef:
       begin
@@ -10669,6 +10685,9 @@ begin
 
         FLex.PopOptions;
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkIfMatch:
       begin
@@ -10716,6 +10735,9 @@ begin
 
         FLex.PopOptions;
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkBranchReset:
       begin
@@ -10741,6 +10763,9 @@ begin
 
         FLex.PopOptions;
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkCallout:
       begin
@@ -10748,6 +10773,9 @@ begin
           FLex.CurrentPosition, 1);
         FRegExp.FCodeList.Add(Result);
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkEmpty:
       begin
@@ -10774,6 +10802,9 @@ begin
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkbcSkip:
       begin
@@ -10790,6 +10821,9 @@ begin
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkbcMark:
       begin
@@ -10801,6 +10835,9 @@ begin
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkbcThen:
       begin
@@ -10817,6 +10854,9 @@ begin
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkbcCommit:
       begin
@@ -10833,6 +10873,9 @@ begin
         (Result as TREBinCode).GroupIndex := LGroupNo;
 
         FLex.GetToken;
+
+        if not FHasReference then
+          FHasReference := True;
       end;
     tkbcAccept:
       begin
@@ -10903,9 +10946,14 @@ function TREOptimizeData.DebugOutput: REString;
   end;
 
 begin
-  Result := Format('(%s) "%s" at (%d, %d), branch:%d',
-    [GetKindStr(FKind), FState.Code.GetDebugStr,
-      FOffset.Min, FOffset.Max, FState.BranchIndex])
+  if FState <> nil then
+    Result := Format('(%s) "%s" at (%d, %d), branch:%d',
+      [GetKindStr(FKind), FState.Code.GetDebugStr,
+        FOffset.Min, FOffset.Max, FState.BranchIndex])
+//  else
+//    Result := Format('(%s) "[Empty]" at (%d, %d), branch:%d',
+//      [GetKindStr(FKind),
+//        FOffset.Min, FOffset.Max, FState.BranchIndex])
 end;
 {$ENDIF SKREGEXP_DEBUG}
 
@@ -11293,6 +11341,12 @@ begin
   NFACode.MatchKind := lkNone;
   NFACode.ExtendTo := -1;
   NFACode.LoopIndex := -1;
+  if FBEntryState = ATransFrom then
+    NFACode.StateKind := skEntry
+  else if FBExitState = ATransTo then
+    NFACode.StateKind := skExit
+  else
+    NFACode.StateKind := skNormal;
 
   FStateList[ATransFrom] := NFACode;
   Result := NFACode;
@@ -11330,15 +11384,11 @@ begin
   Offset.Min := 0;
   Offset.Max := 0;
 
-  if AParser.HasGoSub then
-  begin
-    FRegExp.FHasGoSub := True;
-    MatchLen.Min := 0;
-    MatchLen.Max := 0;
-    CalculateGroupLength(FRegExp.FCode, MatchLen, False, True);
-  end
-  else
-    FRegExp.FHasGoSub := False;
+  FRegExp.FHasGoSub := AParser.HasGoSub;
+
+  MatchLen.Min := 0;
+  MatchLen.Max := 0;
+  CalculateGroupLength(FRegExp.FCode, MatchLen, False, True);
 
   MatchLen.Min := 0;
   MatchLen.Max := 0;
@@ -11351,7 +11401,8 @@ begin
 
   FRegExp.FMinMatchLength := MatchLen.Min;
   FRegExp.FMaxMatchLength := MatchLen.Max;
-  FRegExp.FGroups.CheckSameGroupName;
+  if FRegExp.FHasReference or FRegExp.FUseReference then
+    FRegExp.FGroups.CheckSameGroupName;
 end;
 
 constructor TRENFA.Create(ARegExp: TSkRegExp);
@@ -11747,7 +11798,7 @@ begin
           end;
         opGroup:
           begin
-            if FRegExp.FNoUseReference then
+            if not FRegExp.FHasReference and not FRegExp.FUseReference then
             begin
               GenerateStateList(Left, AEntry, AWayout, ABranchLevel, AMatchLen, AOffset,
                 GroupIndex, AState);
@@ -12380,6 +12431,9 @@ begin
             CalculateGroupLength(Left, LLen, IsNullMatch, IsJoinMatch);
 
             FRegExp.FGroups[GroupIndex].CharLength := LLen;
+
+            if (LLen.Min = 0) and (not FRegExp.FHasReference) then
+              FRegExp.FHasReference := True;
 
             if (AMatchLen.Min > -1) and (LLen.Min > -1) then
               Inc(AMatchLen.Min, LLen.Min)
@@ -13086,21 +13140,18 @@ begin
     LStat := FStat^[I];
     if LStat <> nil then
     begin
-      Dispose(LStat);
-      FStat^[I] := nil;
-    end;
-
-    if FGroup^[I] <> nil then
-    begin
-      MatchRecList := FGroup^[I];
+      MatchRecList := LStat.Groups;
       for J := MatchRecList.Count - 1 downto 0 do
       begin
         P := MatchRecList[J];
         if P <> nil then
           Dispose(P);
       end;
+      MatchRecList.Clear;
       MatchRecList.Free;
-      FGroup^[I] := nil;
+      LStat.Groups := nil;
+      Dispose(LStat);
+      FStat^[I] := nil;
     end;
   end;
 
@@ -13120,7 +13171,6 @@ begin
   FRegExp := ARegExp;
   FSize := CONST_BackTrack_Stack_Default_Size;
   GetMem(FStat, FSize * Sizeof(Pointer));
-  GetMem(FGroup, FSize * Sizeof(Pointer));
   FCurIndex := -1;
   FCheckMatchExplosion := ACheckMatchExplosion;
 end;
@@ -13130,7 +13180,6 @@ begin
   Clear;
 
   FreeMem(FStat);
-  FreeMem(FGroup);
   inherited;
 end;
 
@@ -13146,9 +13195,9 @@ begin
 end;
 
 procedure TREBackTrackStack.Pop;
+{$IFDEF SKREGEXP_DEBUG}
 var
   LStat: PREBackTrackStateRec;
-{$IFDEF SKREGEXP_DEBUG}
   AStr: PWideChar;
   NFACode: TRENFAState;
   T: REString;
@@ -13233,7 +13282,7 @@ ReStart:
 
   if LStat.HasGroup then
   begin
-    MatchRecList := FGroup^[FCurIndex];
+    MatchRecList := LStat.Groups;
     for I := 0 to MatchRecList.Count - 1 do
     begin
       P := MatchRecList[I];
@@ -13293,7 +13342,7 @@ begin
     New(LStat);
     FStat^[FCurIndex] := LStat;
     MatchRecList := TList.Create;
-    FGroup^[FCurIndex] := MatchRecList;
+    LStat.Groups := MatchRecList;
     LStat.HasGroup := IsPushGroup;
 
     for I := 1 to FRegExp.FGroups.Count - 1 do
@@ -13319,7 +13368,7 @@ begin
   else
   begin
     LStat := FStat^[FCurIndex];
-    MatchRecList := FGroup^[FCurIndex];
+    MatchRecList := LStat.Groups;
 
     for I := 1 to FRegExp.FGroups.Count - 1 do
     begin
@@ -13449,7 +13498,6 @@ begin
   FSize := FSize + ASize;
 
   ReallocMem(FStat, FSize * Sizeof(Pointer));
-  ReallocMem(FGroup, FSize * Sizeof(Pointer));
 end;
 
 function TREBackTrackStack.GetIndex: Integer;
@@ -13899,8 +13947,8 @@ begin
         if FLeadStrings.Search.Exec(AStr, FRegExp.FMatchEndP - AStr) then
         begin
           Result := True;
-          FGroups[0].StartP := FLeadStrings.Search.MatchP;
-          FGroups[0].EndP := FLeadStrings.Search.MatchP + FLeadStrings.Search.MatchLen;
+          FRegExp.FGlobalStartP := FLeadStrings.Search.MatchP;
+          FRegExp.FGlobalEndP := FLeadStrings.Search.MatchP + FLeadStrings.Search.MatchLen;
         end;
       end;
     lcmAhoCrasick:
@@ -13908,8 +13956,8 @@ begin
         if FLeadTrie.TrieSearch.Exec(AStr, FRegExp.FMatchEndP - AStr) then
         begin
           Result := True;
-          FGroups[0].StartP := FLeadTrie.TrieSearch.StartP;
-          FGroups[0].EndP := FLeadTrie.TrieSearch.EndP;
+          FRegExp.FGlobalStartP := FLeadTrie.TrieSearch.StartP;
+          FRegExp.FGlobalEndP := FLeadTrie.TrieSearch.EndP;
         end;
       end;
     lcmTextTop:
@@ -14232,11 +14280,9 @@ function TREMatchEngine.MatchEntry(AStr: PWideChar): Boolean;
 var
   NFACode: TRENFAState;
 begin
-  FGroups.Reset;
   if FRegExp.FHasGoSub then
-  begin
     FRegExp.FSubStack.Reset;
-  end;
+  FGroups.Reset;
   FLoopState.Reset;
   FBackTrackStack.Reset;
   FHasSkip := False;
@@ -14244,7 +14290,8 @@ begin
   FSkipIndex := -1;
 
   NFACode := FStateList[FRegExp.FEntryState];
-  FGroups[0].StartP := AStr;
+  FRegExp.FGlobalStartP := AStr;
+  FRegExp.FGlobalEndP := nil;
   FRegExp.FStartMatch := AStr - FRegExp.FTextTopP + 1;
   Result := MatchPrim(NFACode, nil, FBackTrackStack, AStr, mmNormal);
 
@@ -14866,7 +14913,7 @@ begin
             end
             else
             begin
-              FGroups[0].EndP := AStr;
+              FRegExp.FGlobalEndP := AStr;
               NFACode := nil;
             end;
           end;
@@ -14974,8 +15021,8 @@ begin
           end;
         nkKeepPattern:
           begin
-            Stack.Clear;
-            FGroups[0].StartP := AStr;
+            Stack.Reset;
+            FRegExp.FGlobalStartP := AStr;
             NFACode := FStateList[NFACode.TransitTo];
           end;
         nkGoSub:
@@ -15223,7 +15270,7 @@ begin
         nkAccept:
           begin
             //内包するキャプチャを設定
-            for I := 0 to FGroups.Count - 1 do
+            for I := 1 to FGroups.Count - 1 do
             begin
               if (FGroups[I].EndP = nil) and
                   (FGroups[I].StartPBuf <> nil) then
@@ -15264,7 +15311,7 @@ ExitMatchPrim:
 
     if NFACode = nil then
     begin
-      if FGroups[0].EndP <> nil then
+      if FRegExp.FGlobalEndP <> nil then
       begin
         if AMode <> mmRepeat then
           Result := True;
@@ -15799,10 +15846,71 @@ begin
   SetExpression(AExpression);
 end;
 
+function TSkRegExp.CurrentMatch(const Text: REString;
+  const AOffset: Integer): Boolean;
+var
+  P: PWideChar;
+begin
+  Result := False;
+  FMatchOffset := AOffset;
+
+  SetInputString(Text);
+
+  if (AOffset < 1) then
+    Exit;
+
+  if FMatchTopP = nil then
+    Exit;
+  if not FCompiled then
+  begin
+    Compile;
+{$IFDEF CHECK_MATCH_EXPLOSION}
+    if not FModified then
+      ClearMatchExplosionState
+    else
+{$ENDIF CHECK_MATCH_EXPLOSION}
+      FModified := False;
+  end;
+
+  if AOffset > 1 then
+    P := FTextTopP + AOffset - 1
+  else
+    P := FTextTopP;
+
+  FMatchOffset := P - FTextTopP + 1;
+
+  FMatchEndP := FTextEndP;
+  FMatchTopP := FTextTopP;
+
+  FMatchStartP := FMatchTopP;
+
+{$IFDEF SKREGEXP_DEBUG}
+  if FShowMatchProcess then
+    FMatchProcess.Clear;
+{$ENDIF}
+  FSuccess := FMatchEngine.MatchEntry(P);
+  if FSuccess then
+  begin
+    FGroups[0].StartP := FGlobalStartP;
+    FGroups[0].EndP := FGlobalEndP;
+
+    if Assigned(FOnMatch) then
+      FOnMatch(Self);
+  end
+  else
+  begin
+    FGlobalStartP := FMatchTopP;
+    FGlobalEndP := FMatchTopP;
+  end;
+  Result := FSuccess;
+end;
+
 constructor TSkRegExp.Create(AOptions: TREOptions;
   ALineBreakKind: TRELineBreakKind);
 begin
   inherited Create;
+
+  FUseReference := True;
 
   FLineBreakKind := lbAnyCRLF;
   IsLineBreak := IsAnyCRLF;
@@ -16517,7 +16625,10 @@ end;
 
 function TSkRegExp.GetIndex: Integer;
 begin
-  Result := FGroups[0].Index;
+  if FSuccess then
+    Result := FGlobalStartP - FTextTopP + 1
+  else
+    Result := 0;
 end;
 
 function TSkRegExp.GetIndexFromGroupName(Name: REString): Integer;
@@ -16537,7 +16648,10 @@ end;
 
 function TSkRegExp.GetLength: Integer;
 begin
-  Result := FGroups[0].Length;
+  if FSuccess then
+    Result := FGlobalEndP - FGlobalStartP
+  else
+    Result := 0;
 end;
 
 function TSkRegExp.GetOptions(const Index: Integer): Boolean;
@@ -16583,7 +16697,36 @@ end;
 
 function TSkRegExp.GetStrings: REString;
 begin
-  Result := FGroups[0].Strings;
+  if FSuccess then
+    SetString(Result, FGlobalStartP, FGlobalEndP - FGlobalStartP)
+  else
+    Result := '';
+end;
+
+procedure TSkRegExp.GenerateGroup(AGroups: TGroupCollection);
+var
+  R: TSkRegExp;
+  I: Integer;
+begin
+  R := TSkRegExp.Create(FExpression, FOptions, FLineBreakKind);
+  try
+    R.FUseReference := True;
+    R.FCompiled := False;
+    if R.CurrentMatch(FInputString, GetIndex) then
+    begin
+      for I := 1 to R.GroupCount do
+      begin
+        AGroups[I].FStartP := R.Groups[I].FStartP;
+        AGroups[I].FEndP := R.Groups[I].FEndP;
+        AGroups[I].FSuccess := R.Groups[I].FSuccess;
+        AGroups[I].FGroupName := R.Groups[I].FGroupName;
+      end;
+    end
+    else
+      Error('Bug: not generate groups');
+finally
+    R.Free;
+  end;
 end;
 
 function TSkRegExp.GetDefineCharClassLegacy: Boolean;
@@ -16710,8 +16853,11 @@ begin
   FSuccess := FMatchEngine.Match(AStr);
   if FSuccess then
   begin
-    FGlobalStartP := FGroups[0].StartP;
-    FGlobalEndP := FGroups[0].EndP;
+    FGroups[0].StartP := FGlobalStartP;
+    FGroups[0].EndP := FGlobalEndP;
+
+    if not FUseReference and not FHasReference and (FGroups.Count > 1) then
+      GenerateGroup(FGroups);
 
     if Assigned(FOnMatch) then
       FOnMatch(Self);
@@ -16806,11 +16952,12 @@ begin
   InputString := Input;
   Index := 1;
   LReplacement := DecodeEscape(Replacement);
+  FUseReference := True;
 
   if ExecPos(AOffset) then
   begin
     repeat
-      if FGroups[0].Length > 0 then
+      if GetLength > 0 then
       begin
         if (Count > 0) then
         begin
@@ -16823,9 +16970,9 @@ begin
         if Assigned(FOnReplace) then
           FOnReplace(Self, RepStr);
 
-        Result := Result + Copy(Input, Index, FGroups[0].Index - Index)
+        Result := Result + Copy(Input, Index, GetIndex - Index)
           + RepStr;
-        Index := FGroups[0].Index + FGroups[0].Length;
+        Index := GetIndex + GetLength;
       end;
     until not ExecNext;
   end;
@@ -17040,12 +17187,12 @@ begin
   if ExecPos(AOffset) then
   begin
     repeat
-      if FGroups[0].Length > 0 then
+      if GetLength > 0 then
       begin
-        S := Copy(Input, Index, FGroups[0].Index - Index);
+        S := Copy(Input, Index, GetIndex - Index);
         APieces.Add(S);
 
-        Index := FGroups[0].Index + FGroups[0].Length;
+        Index := GetIndex + GetLength;
 
         Inc(LCount);
         if (Count > 0) and (LCount >= Count - 1) then
@@ -17098,17 +17245,16 @@ begin
           Result := Result + FGroups.Names[LGroupName].Strings;
       end
       else if ATemplate[I] = '&' then
-        Result := Result + FGroups[0].Strings
+        Result := Result + GetStrings
       else if ATemplate[I] = '$' then
         Result := Result + '$'
       else if ATemplate[I] = '`' then
       begin
-        Result := Result + Copy(FInputString, 1, FGroups[0].Index - 1);
+        Result := Result + Copy(FInputString, 1, GetIndex - 1);
       end
       else if ATemplate[I] = '''' then
       begin
-        Result := Result + Copy(FInputString, FGroups[0].
-          Index + FGroups[0].Length, Maxint);
+        Result := Result + Copy(FInputString, GetIndex + GetLength, Maxint);
       end
       else if ATemplate[I] = '_' then
       begin
@@ -17164,6 +17310,5 @@ begin
     R.Free;
   end;
 end;
-
 
 end.
