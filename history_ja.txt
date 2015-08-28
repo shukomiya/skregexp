@@ -1,6 +1,6 @@
 ﻿正規表現ライブラリ SkRegExp 更新履歴
 
-   4.0.0
+   4.0.0 2015/8/28 開発版
         ・削除）グローバル変数 SkRegExpDefaultOptions と SkRegExpDefaultLineBreakindを削除。
         ・新規）TSkRegExp.Create で正規表現オプションと改行規則の初期値を設定できるようにした。
         ・更新）修飾子による ^ と $ の挙動の違いをコンパイル時に決定するようにした。

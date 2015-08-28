@@ -1,6 +1,6 @@
 ﻿SkRegExp hisotry
 
-   4.0.0
+   4.0.0 2015/8/28 Develop version
        Del) Remove global variable SkRegExpDefaultOptions and SkRegExpDefaultLineBreakind.
        Add) It has to be able to set the initial value of the regular expression options and
             new line rule in the "TSkRegExp.Create" method.
