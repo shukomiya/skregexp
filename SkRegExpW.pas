@@ -1796,7 +1796,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.9';
+  CONST_VERSION = '3.1.10';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -14707,7 +14707,7 @@ begin
         nkBound:
           begin
             SubP := AStr;
-            SaveP := SubP;
+//            SaveP := SubP;
             LMatchKind := NFACode.MatchKind;
             LMin := NFACode.Min;
             LMax := NFACode.Max;
@@ -15710,10 +15710,11 @@ begin
 
           if SubList[I].Offset.Min <> -1 then
           begin
-            if FAnchorOffset.Min > 0 then
               FAnchorOffset.Min := Min(SubList[I].Offset.Min, FAnchorOffset.Min)
-            else
-              FAnchorOffset.Min := SubList[I].Offset.Min;
+//            if FAnchorOffset.Min > 0 then
+//              FAnchorOffset.Min := Min(SubList[I].Offset.Min, FAnchorOffset.Min)
+//            else
+//              FAnchorOffset.Min := SubList[I].Offset.Min;
           end
           else
             FAnchorOffset.Min := -1;

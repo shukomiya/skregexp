@@ -1,5 +1,8 @@
 ﻿SkRegExp hisotry
 
+   3.1.10 2015/10/12
+       Fix) Warning.
+       Fix) Redundant code in TREMatchEngine.SetupLeadStrings method.
    3.1.9 2015/10/11
        Fix) numeric specification repeatedly in Fixed a bug that may fall into an infinite loop.
    3.1.8 2015/8/10
