@@ -1,5 +1,6 @@
 ﻿SkRegExp hisotry
 
+<<<<<<< HEAD
    4.0.0 2015/8/28 Develop version
        Del) Remove global variable SkRegExpDefaultOptions and SkRegExpDefaultLineBreakind.
        Add) It has to be able to set the initial value of the regular expression options and
@@ -20,6 +21,9 @@
        Mod) The efficient use of memory in TREBackTrackStack.
             The previous version has been released the memory every time it try to match once.
        Chg) Change the generation of capture buffer after the match finished.
+   3.1.10 2015/10/12
+       Fix) Warning.
+       Fix) Redundant code in TREMatchEngine.SetupLeadStrings method.
    3.1.9 2015/10/11
        Fix) numeric specification repeatedly in Fixed a bug that may fall into an infinite loop.
    3.1.8 2015/8/10

@@ -14571,7 +14571,7 @@ begin
         nkBound:
           begin
             SubP := AStr;
-            SaveP := SubP;
+//            SaveP := SubP;
             LMatchKind := NFACode.MatchKind;
             LMin := NFACode.Min;
             LMax := NFACode.Max;
@@ -15567,10 +15567,11 @@ begin
 
           if SubList[I].Offset.Min <> -1 then
           begin
-            if FAnchorOffset.Min > 0 then
               FAnchorOffset.Min := Min(SubList[I].Offset.Min, FAnchorOffset.Min)
-            else
-              FAnchorOffset.Min := SubList[I].Offset.Min;
+//            if FAnchorOffset.Min > 0 then
+//              FAnchorOffset.Min := Min(SubList[I].Offset.Min, FAnchorOffset.Min)
+//            else
+//              FAnchorOffset.Min := SubList[I].Offset.Min;
           end
           else
             FAnchorOffset.Min := -1;
