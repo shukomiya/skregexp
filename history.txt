@@ -20,6 +20,8 @@
        Mod) The efficient use of memory in TREBackTrackStack.
             The previous version has been released the memory every time it try to match once.
        Chg) Change the generation of capture buffer after the match finished.
+   3.1.9 2015/10/11
+       Fix) numeric specification repeatedly in Fixed a bug that may fall into an infinite loop.
    3.1.8 2015/8/10
        Add) Add {$HIGHCHARUNICODE ON} to the conditions defined.
        Del) Delete a condition defined {$IF CompilerVersion> = 16.0}.

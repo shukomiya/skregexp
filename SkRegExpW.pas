@@ -14609,9 +14609,9 @@ begin
               begin
                 Stack.Remove(BaseIndex);
                 NFACode := NextCode;
-                if not FRegExp.FHasReference and
-                    (AStr - SaveP > 0) and (LMin > 0) then
-                  FSkipP := AStr;
+//                if not FRegExp.FHasReference and
+//                    (AStr - SaveP > 0) and (LMin > 0) then
+//                  FSkipP := AStr;
               end;
             end
             else
