@@ -1796,7 +1796,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.8';
+  CONST_VERSION = '3.1.9';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -14745,9 +14745,9 @@ begin
               begin
                 Stack.Remove(BaseIndex);
                 NFACode := NextCode;
-                if not FRegExp.FHasReference and
-                    (AStr - SaveP > 0) and (LMin > 0) then
-                  FSkipP := AStr;
+//                if not FRegExp.FHasReference and
+//                    (AStr - SaveP > 0) and (LMin > 0) then
+//                  FSkipP := AStr;
               end;
             end
             else
