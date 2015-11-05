@@ -405,6 +405,22 @@ begin
     FRegExp.OnReplace := nil;
   end;
 
+  FRegExp.Expression :=
+    '\bточ(ки|ке|ку|ек|кой|ка|кам|ками|ках) над (i|и)\b';
+  FRegExp.Options := FRegExp.Options + [roIgnoreCase, roMultiLine];
+  Check(FRegExp.Replace('все точки над i, точки над i',
+    'то<ч$1 на<д, ии<') = 'все то<чки на<д, ии<, то<чки на<д, ии<',
+    'все то<чки на<д, ии<, то<чки на<д, ии<');
+
+  FRegExp.Expression :=
+    '\bточ(ки|ке|ку|ек|кой|ка|кам|ками|ках) над (i|и)\b';
+  FRegExp.Options := FRegExp.Options + [roIgnoreCase, roMultiLine];
+  Check(FRegExp.Replace('все точки над i, точки над i, точки над i',
+    'то<ч$1 на<д, ии<')
+    = 'все то<чки на<д, ии<, то<чки на<д, ии<, то<чки на<д, ии<',
+    'все то<чки на<д, ии<, то<чки на<д, ии<, то<чки на<д, ии<');
+
+
   // global func version
 
   Check(RegReplace('e', 'We have Beatles.', '$1') = 'W hav Batls.',
@@ -2930,6 +2946,9 @@ begin
   x2('(\d{1,3})0{6}', '146000000'#13#10, 1, 9);
   x3('(\d{1,3})0{6}', '146000000'#13#10, 1, 3, 1);
   x2('(?m)\b[Ĉ]([^Ĉ\d]+)', 'Z Zzzz'#13#10'Ĉ Ĉĉĉĉ'#13#10, 9, 2);
+
+  x2('\bточ(ки|ке|ку|ек|кой|ка|кам|ками|ках) над (i|и)\b',
+    'все точки над i', 5, 11);
 
 end;
 

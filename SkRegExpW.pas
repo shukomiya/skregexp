@@ -11550,13 +11550,13 @@ begin
             else
               AMatchLen.Max := -1;
 
-            if (AOffset.Min > -1) and (LOffset.Min > -1) and (ROffset.Min > -1) then
-              Inc(AOffset.Min, SkRegExpW.Min(LOffset.Min, ROffset.Min))
+            if (AOffset.Min > -1) and (AMatchLen.Min > -1) then
+              Inc(AOffset.Min, AMatchLen.Min)
             else
               AOffset.Min := -1;
 
-            if (AOffset.Max > -1) and (LOffset.Max > -1) and (ROffset.Max > -1) then
-              Inc(AOffset.Max, SkRegExpW.Max(LOffset.Max, ROffset.Max))
+            if (AOffset.Max > -1) and (AMatchLen.Max > -1) then
+              Inc(AOffset.Max, AMatchLen.Max)
             else
               AOffset.Max := -1;
 
