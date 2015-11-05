@@ -1,5 +1,10 @@
 ﻿SkRegExp hisotry
 
+   3.1.11 2015/11/5
+       Fix) Fixed a bug that may not match the selection, including the fixed string of
+            different lengths.
+            The cause, it is using to optimize the calculation of character position of
+            the fixed string was wrong.
    3.1.10 2015/10/12
        Fix) Warning.
        Fix) Redundant code in TREMatchEngine.SetupLeadStrings method.
