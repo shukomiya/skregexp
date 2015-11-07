@@ -1796,7 +1796,7 @@ var
 implementation
 
 const
-  CONST_VERSION = '3.1.11';
+  CONST_VERSION = '3.1.12';
   CONST_LoopMax = $7FFF;
   CONST_BackTrack_Stack_Default_Size = 128;
   CONST_Recursion_Stack_Default_Size = 16;
@@ -15579,7 +15579,7 @@ begin
             NextCode := FStateList[NextCode.TransitTo];
 
           if (NextCode.Kind = nkEnd) or
-              ((NFACode.BranchIndex = NextCode.BranchIndex) and
+              ((NFACode.BranchIndex = 0) and
               ((NextCode.Code <> nil) and not NextCode.Code.IsVariable) and
               (NextCode.Code <> nil) and
               not NFACode.Code.IsOverlap(NextCode.Code)) then
