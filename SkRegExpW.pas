@@ -15436,7 +15436,7 @@ begin
             NextCode := FStateList[NextCode.TransitTo];
 
           if (NextCode.Kind = nkEnd) or
-              ((NFACode.BranchIndex = NextCode.BranchIndex) and
+              ((NFACode.BranchIndex = 0) and
               ((NextCode.Code <> nil) and not NextCode.Code.IsVariable) and
               (NextCode.Code <> nil) and
               not NFACode.Code.IsOverlap(NextCode.Code)) then

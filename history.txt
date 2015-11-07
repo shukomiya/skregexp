@@ -20,6 +20,8 @@
        Mod) The efficient use of memory in TREBackTrackStack.
             The previous version has been released the memory every time it try to match once.
        Chg) Change the generation of capture buffer after the match finished.
+   3.1.12 2015/11/7
+       Fix) Optimization of repetition.
    3.1.11 2015/11/5
        Fix) Fixed a bug that may not match the selection, including the fixed string of
             different lengths.

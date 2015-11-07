@@ -276,7 +276,7 @@ resourcestring
   sBinCode_Commit                     = 'Commit';
   sBinCode_Accept                     = 'Accept';
 
-{$ENDIF}  // end of Debug;
+{$ENDIF SKREGEXP_DEBUG}  // end of Debug;
 
 implementation
 
